@@ -423,14 +423,15 @@
 **Goal:** Set up RN app with camera, location, networking, and overlay rendering baseline.
 **Deliverables:**
 
-* RN project scaffolding
+* Expo project scaffolding (`npx create-expo-app` or `expo init`)
 * Install + configure:
 
-  * `react-native-vision-camera` (§3.1)
-  * geolocation library
-  * `@shopify/react-native-skia` (preferred) (§3.1)
-  * networking (`fetch` or `axios`) (§3.1)
-* Permissions setup (camera, mic, location, photo library if needed)
+  * `expo-camera` (§3.1)
+  * `expo-location` (§3.1)
+  * `@shopify/react-native-skia` (§3.1)
+  * `axios` (§3.1)
+  * `expo-dev-client` for custom native modules
+* Permissions setup via `app.json` (camera, microphone, location)
   **Spec refs:** §3.1 Mobile tech, §5.1 Capture, §5.3 Client state machine
 
 ### T8.2 — Implement client state machine and navigation scaffolding

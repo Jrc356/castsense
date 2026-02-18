@@ -1,5 +1,5 @@
 /**
- * CastSense Metadata Collection Service
+ * CastSense Metadata Collection Service (Expo)
  * 
  * Collects all metadata per spec §7.2:
  * - client: platform, app_version, device_model, locale, timezone
@@ -8,11 +8,10 @@
  * - user_constraints: lures_available, line_test_lb, notes
  */
 
-import {Platform, NativeModules} from 'react-native';
-import Geolocation, {
-  type GeoPosition,
-  type GeoError,
-} from 'react-native-geolocation-service';
+import {Platform} from 'react-native';
+import * as Location from 'expo-location';
+import * as Device from 'expo-device';
+import * as Localization from 'expo-localization';
 import {
   type CastSenseRequestMetadata,
 } from '../types/contracts';
@@ -75,23 +74,15 @@ const LOCATION_MAX_AGE_MS = 30000;
 export function getDeviceInfo(): DeviceInfo {
   const platform = Platform.OS === 'ios' ? 'ios' : 'android';
   
-  // Get device model
-  let deviceModel = 'unknown';
-  if (Platform.OS === 'ios') {
-    // On iOS, we can get a more specific model from constants
-    deviceModel = Platform.constants?.systemName 
-      ? `${Platform.constants.systemName} ${Platform.constants.osVersion}`
-      : 'iOS Device';
-  } else {
-    // On Android
-    deviceModel = Platform.constants?.Model || 'Android Device';
-  }
+  // Get device model using expo-device
+  const deviceModel = Device.modelName || Device.deviceName || 'Unknown Device';
 
-  // Get locale
-  const locale = getDeviceLocale();
+  // Get locale using expo-localization
+  const locales = Localization.getLocales();
+  const locale = locales[0]?.languageTag || 'en-US';
   
-  // Get timezone
-  const timezone = getDeviceTimezone();
+  // Get timezone using expo-localization
+  const timezone = Localization.getCalendars()[0]?.timeZone || 'UTC';
 
   return {
     platform,
@@ -100,36 +91,6 @@ export function getDeviceInfo(): DeviceInfo {
     locale,
     timezone,
   };
-}
-
-/**
- * Get device locale (e.g., "en-US")
- */
-function getDeviceLocale(): string {
-  try {
-    if (Platform.OS === 'ios') {
-      return (
-        NativeModules.SettingsManager?.settings?.AppleLocale ||
-        NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] ||
-        'en-US'
-      );
-    } else {
-      return NativeModules.I18nManager?.localeIdentifier || 'en-US';
-    }
-  } catch {
-    return 'en-US';
-  }
-}
-
-/**
- * Get device IANA timezone (e.g., "America/Chicago")
- */
-function getDeviceTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return 'UTC';
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,32 +102,33 @@ function getDeviceTimezone(): string {
  * Returns null if location is unavailable or denied
  */
 export async function getCurrentLocation(): Promise<LocationData | null> {
-  return new Promise((resolve) => {
-    Geolocation.getCurrentPosition(
-      (position: GeoPosition) => {
-        resolve({
-          lat: position.coords.latitude,
-          lon: position.coords.longitude,
-          accuracy_m: position.coords.accuracy,
-          altitude_m: position.coords.altitude ?? undefined,
-          heading_deg: position.coords.heading ?? undefined,
-          speed_mps: position.coords.speed ?? undefined,
-          timestamp: position.timestamp,
-        });
-      },
-      (error: GeoError) => {
-        console.warn('Location error:', error.code, error.message);
-        resolve(null);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: LOCATION_TIMEOUT_MS,
-        maximumAge: LOCATION_MAX_AGE_MS,
-        forceRequestLocation: true,
-        showLocationDialog: true,
-      }
-    );
-  });
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    
+    if (status !== 'granted') {
+      console.warn('Location permission not granted');
+      return null;
+    }
+
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+      timeInterval: LOCATION_TIMEOUT_MS,
+      distanceInterval: 0,
+    });
+
+    return {
+      lat: location.coords.latitude,
+      lon: location.coords.longitude,
+      accuracy_m: location.coords.accuracy ?? undefined,
+      altitude_m: location.coords.altitude ?? undefined,
+      heading_deg: location.coords.heading ?? undefined,
+      speed_mps: location.coords.speed ?? undefined,
+      timestamp: location.timestamp,
+    };
+  } catch (error) {
+    console.warn('Location error:', error);
+    return null;
+  }
 }
 
 /**
@@ -175,34 +137,38 @@ export async function getCurrentLocation(): Promise<LocationData | null> {
  */
 export function watchLocation(
   onUpdate: (location: LocationData) => void,
-  onError?: (error: GeoError) => void
+  onError?: (error: any) => void
 ): () => void {
-  const watchId = Geolocation.watchPosition(
-    (position: GeoPosition) => {
-      onUpdate({
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy_m: position.coords.accuracy,
-        altitude_m: position.coords.altitude ?? undefined,
-        heading_deg: position.coords.heading ?? undefined,
-        speed_mps: position.coords.speed ?? undefined,
-        timestamp: position.timestamp,
-      });
-    },
-    (error: GeoError) => {
-      console.warn('Location watch error:', error.code, error.message);
-      onError?.(error);
-    },
+  let subscription: Location.LocationSubscription | null = null;
+
+  Location.watchPositionAsync(
     {
-      enableHighAccuracy: true,
-      distanceFilter: 10, // Update every 10 meters
-      interval: 5000, // Update every 5 seconds (Android)
-      fastestInterval: 2000, // Fastest update interval (Android)
+      accuracy: Location.Accuracy.High,
+      timeInterval: 5000, // Update every 5 seconds
+      distanceInterval: 10, // Update every 10 meters
+    },
+    (location) => {
+      onUpdate({
+        lat: location.coords.latitude,
+        lon: location.coords.longitude,
+        accuracy_m: location.coords.accuracy ?? undefined,
+        altitude_m: location.coords.altitude ?? undefined,
+        heading_deg: location.coords.heading ?? undefined,
+        speed_mps: location.coords.speed ?? undefined,
+        timestamp: location.timestamp,
+      });
     }
-  );
+  ).then((sub) => {
+    subscription = sub;
+  }).catch((error) => {
+    console.warn('Location watch error:', error);
+    onError?.(error);
+  });
 
   return () => {
-    Geolocation.clearWatch(watchId);
+    if (subscription) {
+      subscription.remove();
+    }
   };
 }
 

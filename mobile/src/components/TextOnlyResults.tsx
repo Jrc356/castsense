@@ -29,7 +29,6 @@ export interface TextOnlyResultsProps {
  * Extract plan summary from result (handles type complexity).
  */
 function getPlanSummary(result: CastSenseAnalysisResult): string[] {
-  // @ts-expect-error - plan_summary exists but type is complex
   return (result.plan_summary as string[]) || [];
 }
 
@@ -37,7 +36,6 @@ function getPlanSummary(result: CastSenseAnalysisResult): string[] {
  * Extract conditions summary from result.
  */
 function getConditionsSummary(result: CastSenseAnalysisResult): string[] {
-  // @ts-expect-error - conditions_summary exists but type is complex
   return (result.conditions_summary as string[]) || [];
 }
 

@@ -59,18 +59,6 @@ interface Zone {
   };
 }
 
-interface Tactic {
-  zone_id: string;
-  recommended_rig: string;
-  alternate_rigs?: string[];
-  target_depth: string;
-  retrieve_style: string;
-  cadence?: string;
-  cast_count_suggestion?: string;
-  why_this_zone_works: string[];
-  steps?: string[];
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Parse zones from result (handles complex union type)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +71,6 @@ function parseZones(result: CastSenseAnalysisResult | undefined): Zone[] {
 
 function parseTactics(result: CastSenseAnalysisResult | undefined): Tactic[] {
   if (!result) return [];
-  // @ts-expect-error - tactics exists on the result but type is complex
   return (result.tactics as Tactic[]) || [];
 }
 
@@ -413,12 +400,10 @@ export function ResultsScreen(): React.JSX.Element {
         )}
 
         {/* Conditions Summary */}
-        {/* @ts-expect-error - conditions_summary exists but type is complex */}
         {analysisResult?.conditions_summary && analysisResult.conditions_summary.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Conditions</Text>
             <View style={styles.summaryCard}>
-              {/* @ts-expect-error */}
               {analysisResult.conditions_summary.map((condition: string, index: number) => (
                 <Text key={index} style={styles.summaryText}>• {condition}</Text>
               ))}
@@ -427,12 +412,10 @@ export function ResultsScreen(): React.JSX.Element {
         )}
 
         {/* Plan Summary */}
-        {/* @ts-expect-error - plan_summary exists but type is complex */}
         {analysisResult?.plan_summary && analysisResult.plan_summary.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Plan Summary</Text>
             <View style={styles.summaryCard}>
-              {/* @ts-expect-error */}
               {analysisResult.plan_summary.map((item: string, index: number) => (
                 <Text key={index} style={styles.summaryText}>• {item}</Text>
               ))}

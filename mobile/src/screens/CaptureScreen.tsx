@@ -86,7 +86,7 @@ export function CaptureScreen(): React.JSX.Element {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
 
-  const recordingTimer = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -318,7 +318,7 @@ export function CaptureScreen(): React.JSX.Element {
 
   // Handle camera flip
   const handleFlipCamera = useCallback(() => {
-    setCameraPosition(pos => pos === 'back' ? 'front' : 'back');
+    setCameraPosition((pos: CameraPosition) => pos === 'back' ? 'front' : 'back');
   }, []);
 
   // Render loading state

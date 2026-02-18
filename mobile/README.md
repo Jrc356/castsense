@@ -1,20 +1,22 @@
 # CastSense Mobile App
 
-React Native cross-platform mobile application for the CastSense AI fishing assistant.
+Expo-based React Native cross-platform mobile application for the CastSense AI fishing assistant.
 
 ## Features
 
-- **Photo & Video Capture**: Capture fishing spots using react-native-vision-camera
-- **Location Services**: GPS integration for weather and location-based analysis
+- **Photo & Video Capture**: Capture fishing spots using expo-camera
+- **Location Services**: GPS integration via expo-location for weather and location-based analysis
 - **Overlay Visualization**: Display cast zones and tactics on captured media
 - **Offline-Ready Architecture**: State machine-based flow with robust error handling
+- **Auto-detected Backend**: Automatically connects to local backend via LAN IP on physical devices
 
 ## Prerequisites
 
 - Node.js >= 18
-- React Native CLI
-- Xcode (for iOS development)
+- npm >= 10
+- Xcode (for iOS development on macOS)
 - Android Studio (for Android development)
+- A physical device OR iOS Simulator/Android Emulator
 
 ## Installation
 
@@ -22,20 +24,41 @@ React Native cross-platform mobile application for the CastSense AI fishing assi
 # Install dependencies
 npm install
 
-# Install iOS pods (macOS only)
-cd ios && pod install && cd ..
+# Generate native projects (creates ios/ and android/ folders)
+npm run prebuild
 ```
 
 ## Development
 
+### Quick Start with Expo Go (Limited Features)
+
 ```bash
-# Start Metro bundler
+# Start Expo dev server
 npm start
 
-# Run on iOS
+# Scan QR code with Expo Go app on your phone
+```
+
+⚠️ **Note**: Expo Go doesn't support custom native modules like `@shopify/react-native-skia`. For full features, use development builds below.
+
+### Development Builds (Recommended)
+
+```bash
+# Start dev server
+npm start
+
+# In another terminal, build and run on device:
+npm run ios -- --device        # iOS (requires macOS + Xcode)
+npm run android -- --device    # Android
+```
+
+### Simulators/Emulators
+
+```bash
+# iOS Simulator (macOS only)
 npm run ios
 
-# Run on Android
+# Android Emulator
 npm run android
 ```
 
@@ -97,23 +120,27 @@ Idle → ModeSelected → Capturing → Uploading → Analyzing → Results
 
 ## Configuration
 
-Configure the API endpoint in `src/config/api.ts`:
+### Backend Connection
 
-```typescript
-// Development
-const devConfig = {
-  baseUrl: 'http://localhost:3000',
-  apiKey: 'your-dev-api-key',
-  // ...
-};
+The app automatically detects the correct backend URL:
 
-// Production
-const prodConfig = {
-  baseUrl: 'https://api.castsense.app',
-  apiKey: 'your-prod-api-key',
-  // ...
-};
+- **Simulator/Emulator**: Uses `http://localhost:3000`
+- **Physical Device**: Auto-detects your computer's LAN IP (e.g., `http://192.168.1.100:3000`)
+- **Manual Override**: Set `API_BASE_URL` in a `.env` file
+
+Create a `.env` file in the mobile directory (see `.env.example`):
+
+```bash
+# Optional: Override auto-detection
+API_BASE_URL=http://192.168.1.100:3000
+
+# Or use a cloud backend
+API_BASE_URL=https://api.castsense.app
+
+NODE_ENV=development
 ```
+
+The app uses `expo-constants` to load environment variables from `app.config.js`.
 
 ## API Integration
 
@@ -204,11 +231,13 @@ The app handles these error codes with retry logic:
 - `@react-navigation/native` - Navigation
 - `@react-navigation/native-stack` - Stack navigator
 
-### Camera & Media
-- `react-native-vision-camera` - Camera capture
-
-### Location
-- `react-native-geolocation-service` - GPS
+### Expo SDK
+- `expo` - Expo framework
+- `expo-camera` - Camera capture
+- `expo-location` - GPS and location services
+- `expo-device` - Device information
+- `expo-constants` - Environment configuration
+- `expo-localization` - Locale and timezone
 
 ### Rendering
 - `@shopify/react-native-skia` - Overlay rendering
@@ -217,7 +246,6 @@ The app handles these error codes with retry logic:
 - `axios` - HTTP client
 
 ### Utilities
-- `react-native-permissions` - Permission handling
 - `react-native-safe-area-context` - Safe area insets
 
 ## Types
@@ -229,11 +257,35 @@ cd ../contracts
 npm run generate-types
 ```
 
-## TODO
+## Backend Setup
 
-- [ ] Implement Skia overlay rendering components
-- [ ] Add image resizing before upload
-- [ ] Implement video file size validation
-- [ ] Add offline mode indicators
-- [ ] Implement deep linking for shared results
-- [ ] Add analytics integration
+The mobile app requires the CastSense backend to be running:
+
+```bash
+# From the project root
+make up  # Start backend in Docker
+```
+
+The backend will be available at `http://localhost:3000` (or your LAN IP for physical devices).
+
+## Troubleshooting
+
+### "Cannot connect to backend"
+
+- Ensure backend is running: `make up` from project root
+- Check if your device and computer are on the same WiFi network
+- Verify the backend URL in logs: look for "🌐 Network Detection Info"
+- Try setting `API_BASE_URL` explicitly in `.env`
+
+### "Camera/Location permission denied"
+
+- The app will prompt for permissions on first use
+- If denied, open Settings and manually grant permissions
+- iOS: Settings → CastSense → Permissions
+- Android: Settings → Apps → CastSense → Permissions
+
+### "Module not found" errors
+
+- Run `npm install` to install dependencies
+- Run `npm run prebuild -- --clean` to regenerate native projects
+- Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`

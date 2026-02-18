@@ -1,5 +1,5 @@
 /**
- * CastSense Permissions Service
+ * CastSense Permissions Service (Expo)
  * 
  * Handles requesting and checking permissions for:
  * - Camera
@@ -7,20 +7,16 @@
  * - Location
  */
 
-import {Platform, PermissionsAndroid, Alert, Linking} from 'react-native';
-import {
-  check,
-  request,
-  PERMISSIONS,
-  RESULTS,
-  type Permission,
-  type PermissionStatus,
-  openSettings,
-} from 'react-native-permissions';
+import {Alert, Linking} from 'react-native';
+import {Camera} from 'expo-camera';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 
 export interface PermissionState {
   camera: PermissionStatus;
@@ -31,31 +27,13 @@ export interface PermissionState {
 export type PermissionType = 'camera' | 'microphone' | 'location';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Platform-specific Permission Mappings
+// Permission Status Conversion
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getCameraPermission(): Permission {
-  return Platform.select({
-    ios: PERMISSIONS.IOS.CAMERA,
-    android: PERMISSIONS.ANDROID.CAMERA,
-    default: PERMISSIONS.ANDROID.CAMERA,
-  });
-}
-
-function getMicrophonePermission(): Permission {
-  return Platform.select({
-    ios: PERMISSIONS.IOS.MICROPHONE,
-    android: PERMISSIONS.ANDROID.RECORD_AUDIO,
-    default: PERMISSIONS.ANDROID.RECORD_AUDIO,
-  });
-}
-
-function getLocationPermission(): Permission {
-  return Platform.select({
-    ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
-    android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-    default: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-  });
+function convertStatus(expoStatus: any): PermissionStatus {
+  if (expoStatus?.granted) return 'granted';
+  if (expoStatus?.canAskAgain === false) return 'denied';
+  return 'undetermined';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,16 +44,16 @@ function getLocationPermission(): Permission {
  * Check all required permissions
  */
 export async function checkAllPermissions(): Promise<PermissionState> {
-  const [camera, microphone, location] = await Promise.all([
-    check(getCameraPermission()),
-    check(getMicrophonePermission()),
-    check(getLocationPermission()),
+  const [cameraStatus, microphoneStatus, locationStatus] = await Promise.all([
+    Camera.getCameraPermissionsAsync(),
+    Camera.getMicrophonePermissionsAsync(),
+    Location.getForegroundPermissionsAsync(),
   ]);
 
   return {
-    camera,
-    microphone,
-    location,
+    camera: convertStatus(cameraStatus),
+    microphone: convertStatus(microphoneStatus),
+    location: convertStatus(locationStatus),
   };
 }
 
@@ -85,22 +63,21 @@ export async function checkAllPermissions(): Promise<PermissionState> {
 export async function isPermissionGranted(
   type: PermissionType
 ): Promise<boolean> {
-  let permission: Permission;
+  let status;
   
   switch (type) {
     case 'camera':
-      permission = getCameraPermission();
+      status = await Camera.getCameraPermissionsAsync();
       break;
     case 'microphone':
-      permission = getMicrophonePermission();
+      status = await Camera.getMicrophonePermissionsAsync();
       break;
     case 'location':
-      permission = getLocationPermission();
+      status = await Location.getForegroundPermissionsAsync();
       break;
   }
 
-  const result = await check(permission);
-  return result === RESULTS.GRANTED;
+  return status.granted;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,22 +90,21 @@ export async function isPermissionGranted(
 export async function requestPermission(
   type: PermissionType
 ): Promise<PermissionStatus> {
-  let permission: Permission;
+  let result;
   
   switch (type) {
     case 'camera':
-      permission = getCameraPermission();
+      result = await Camera.requestCameraPermissionsAsync();
       break;
     case 'microphone':
-      permission = getMicrophonePermission();
+      result = await Camera.requestMicrophonePermissionsAsync();
       break;
     case 'location':
-      permission = getLocationPermission();
+      result = await Location.requestForegroundPermissionsAsync();
       break;
   }
 
-  const result = await request(permission);
-  return result;
+  return convertStatus(result);
 }
 
 /**
@@ -137,7 +113,7 @@ export async function requestPermission(
 export async function requestCameraPermission(): Promise<boolean> {
   const status = await requestPermission('camera');
   
-  if (status === RESULTS.BLOCKED || status === RESULTS.DENIED) {
+  if (status === 'denied') {
     showPermissionDeniedAlert(
       'Camera Permission Required',
       'CastSense needs camera access to capture photos and videos of fishing spots for analysis.'
@@ -145,7 +121,7 @@ export async function requestCameraPermission(): Promise<boolean> {
     return false;
   }
   
-  return status === RESULTS.GRANTED;
+  return status === 'granted';
 }
 
 /**
@@ -154,7 +130,7 @@ export async function requestCameraPermission(): Promise<boolean> {
 export async function requestMicrophonePermission(): Promise<boolean> {
   const status = await requestPermission('microphone');
   
-  if (status === RESULTS.BLOCKED || status === RESULTS.DENIED) {
+  if (status === 'denied') {
     showPermissionDeniedAlert(
       'Microphone Permission Required',
       'CastSense needs microphone access to record videos with audio.'
@@ -162,7 +138,7 @@ export async function requestMicrophonePermission(): Promise<boolean> {
     return false;
   }
   
-  return status === RESULTS.GRANTED;
+  return status === 'granted';
 }
 
 /**
@@ -171,7 +147,7 @@ export async function requestMicrophonePermission(): Promise<boolean> {
 export async function requestLocationPermission(): Promise<boolean> {
   const status = await requestPermission('location');
   
-  if (status === RESULTS.BLOCKED || status === RESULTS.DENIED) {
+  if (status === 'denied') {
     showPermissionDeniedAlert(
       'Location Permission Recommended',
       'CastSense uses your location to provide weather conditions, sunrise/sunset times, and local fishing information. Without location, analysis will be limited.'
@@ -179,7 +155,7 @@ export async function requestLocationPermission(): Promise<boolean> {
     return false;
   }
   
-  return status === RESULTS.GRANTED;
+  return status === 'granted';
 }
 
 /**
@@ -234,10 +210,7 @@ function showPermissionDeniedAlert(title: string, message: string): void {
       {
         text: 'Open Settings',
         onPress: () => {
-          openSettings().catch(() => {
-            // Fallback for older versions
-            Linking.openSettings();
-          });
+          Linking.openSettings();
         },
       },
     ],
@@ -250,7 +223,7 @@ function showPermissionDeniedAlert(title: string, message: string): void {
  */
 export async function hasCapturePermissions(): Promise<boolean> {
   const state = await checkAllPermissions();
-  return state.camera === RESULTS.GRANTED;
+  return state.camera === 'granted';
 }
 
 /**
@@ -259,8 +232,8 @@ export async function hasCapturePermissions(): Promise<boolean> {
 export async function canUseLocation(): Promise<boolean> {
   const state = await checkAllPermissions();
   return (
-    state.location === RESULTS.GRANTED ||
-    state.location === RESULTS.DENIED // Can still request
+    state.location === 'granted' ||
+    state.location === 'undetermined' // Can still request
   );
 }
 
@@ -269,17 +242,25 @@ export async function canUseLocation(): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function isGranted(status: PermissionStatus): boolean {
-  return status === RESULTS.GRANTED;
+  return status === 'granted';
 }
 
 export function isDenied(status: PermissionStatus): boolean {
-  return status === RESULTS.DENIED;
+  return status === 'denied';
 }
 
 export function isBlocked(status: PermissionStatus): boolean {
-  return status === RESULTS.BLOCKED;
+  return status === 'denied';
 }
 
 export function isUnavailable(status: PermissionStatus): boolean {
-  return status === RESULTS.UNAVAILABLE;
+  return false; // Expo doesn't have an 'unavailable' status
 }
+
+// Compatibility exports for code that uses RESULTS constants
+export const RESULTS = {
+  GRANTED: 'granted' as const,
+  DENIED: 'denied' as const,
+  BLOCKED: 'denied' as const,
+  UNAVAILABLE: 'denied' as const,
+};

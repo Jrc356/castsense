@@ -117,7 +117,7 @@ export function OverlayCanvas({
   );
 
   // Tap gesture handler
-  const tapGesture = Gesture.Tap().onEnd((event) => {
+  const tapGesture = Gesture.Tap().onEnd((event: {x: number; y: number}) => {
     handleTouch({ x: event.x, y: event.y });
   });
 

@@ -21,16 +21,17 @@ castsense/
 ### Prerequisites
 
 - Docker & Docker Compose
-- Node.js >= 20.x (for local contracts type generation)
-- npm >= 10.x
+- Node.js >= 18 (for mobile development and type generation)
+- npm >= 10
+- For mobile: Xcode (iOS) or Android Studio (Android)
 
-### Using Make (Recommended)
+### Backend Development
 
 The easiest way to get started is with the included Makefile:
 
 ```bash
 make help                          # See all available commands
-make up                            # Start all services in Docker
+make up                            # Start backend in Docker
 make logs                          # View service logs
 make backend-test                  # Run backend tests in Docker
 make contracts-generate-types      # Generate TypeScript types from schemas
@@ -42,30 +43,28 @@ The backend API will be available at `http://localhost:3000`:
 curl http://localhost:3000/v1/health
 ```
 
-To stop the services:
+### Mobile Development (Expo)
+
+The mobile app uses Expo for local development:
+
+```bash
+cd mobile
+npm install                        # Install dependencies
+npm start                          # Start Expo dev server
+
+# In another terminal:
+npm run ios -- --device           # Run on iOS device/simulator
+npm run android -- --device       # Run on Android device/emulator
+```
+
+The app will auto-detect your computer's LAN IP and connect to the backend running in Docker.
+
+See [mobile/README.md](mobile/README.md) for detailed setup instructions.
+
+To stop the backend:
 
 ```bash
 make down
-```
-
-### Backend Development (Docker)
-
-Start the development environment:
-
-```bash
-make up
-```
-
-Then open a shell in the backend container:
-
-```bash
-make backend-shell
-```
-
-Or view live logs:
-
-```bash
-make backend-logs
 ```
 
 ### Type Generation

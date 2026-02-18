@@ -79,16 +79,19 @@ This document defines the technical architecture, key technical decisions, syste
 
 ### 3.1 Mobile Technology
 
-* **Framework**: React Native (single codebase for iOS + Android)
-* **Camera**: `react-native-vision-camera`
-* **Overlays**: `@shopify/react-native-skia` (preferred) or `react-native-svg` (fallback)
-* **Networking**: `fetch` or `axios`
-* **Location**: platform geolocation library; request precise GPS when available
+* **Framework**: Expo (managed React Native workflow for iOS + Android)
+* **Camera**: `expo-camera`
+* **Overlays**: `@shopify/react-native-skia`
+* **Networking**: `axios`
+* **Location**: `expo-location` (precise GPS)
+* **Device Info**: `expo-device`, `expo-constants`, `expo-localization`
 * **Video processing**: v1 prefers backend keyframe extraction; optional client-side downscale/transcode where needed
 
 Rationale:
 
+* Expo provides streamlined development workflow with over-the-air updates and simplified native module integration
 * High-performance capture, consistent rendering, minimal client complexity in v1 (video handled server-side)
+* Auto-detection of backend URL for local development (localhost for simulator, LAN IP for physical devices)
 
 ### 3.2 Backend Technology
 

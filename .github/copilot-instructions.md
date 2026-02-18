@@ -19,10 +19,21 @@ make down                    # Stop all services
 
 ### Backend Development
 ```bash
-make up               # Start services
+make up               # Start backend in Docker
 make backend-shell    # Open shell in backend container
 make backend-logs     # View backend logs
 ```
+
+### Mobile Development
+```bash
+cd mobile
+npm install           # Install dependencies
+npm start             # Start Expo dev server
+npm run ios           # Run on iOS (macOS only)
+npm run android       # Run on Android
+```
+
+Mobile app uses Expo and auto-detects the backend URL (localhost for simulator, LAN IP for physical devices).
 
 ### Type Generation
 ```bash
@@ -34,7 +45,7 @@ This outputs types to both `mobile/src/types/contracts.ts` and `backend/src/type
 Tests & CI
 ----------
 - Backend tests: `make backend-test` (runs in Docker via Jest). Full coverage test: `make backend-test -- --coverage --ci`. See [backend/jest.config.js](backend/jest.config.js#L1).
-- Mobile tests: can be run with `docker-compose exec mobile npm test` (Jest + ts-jest). See [mobile/jest.config.js](mobile/jest.config.js#L1).
+- Mobile tests: can be run with `cd mobile && npm test` (Jest + ts-jest). See [mobile/jest.config.js](mobile/jest.config.js#L1).
 - CI pipeline and expectations are in [.github/workflows/ci.yml](.github/workflows/ci.yml#L1).
 
 Docker & Local Compose
@@ -55,6 +66,7 @@ Conventions & Notes
 - Testing: Jest with `ts-jest` preset. Backend tests live under `backend/src/__tests__` and mobile tests under `mobile/src/__tests__`.
 - Contracts: canonical JSON Schemas in the `contracts/` directory. Types are generated into both `mobile` and `backend`.
 - AI flow: backend collects context, enriches weather/geocode/solar, then invokes provider; outputs are strictly validated against `result.schema.json`.
+- Mobile: Uses Expo for development. Camera (expo-camera), location (expo-location), permissions (Expo APIs).
 
 Key Files & Entry Points
 ------------------------

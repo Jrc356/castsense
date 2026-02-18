@@ -178,12 +178,14 @@ Loading indicator:
 
 ### Recommended Libraries
 
-* Camera: `react-native-vision-camera`
-* Location: `react-native-geolocation-service`
-* Permissions: `react-native-permissions`
+* Framework: Expo (managed React Native)
+* Camera: `expo-camera`
+* Location: `expo-location`
+* Permissions: Expo permission APIs (built-in)
 * Video processing: native modules or FFmpeg binding
-* Canvas overlays: `react-native-skia` or `react-native-svg`
-* Networking: fetch/axios
+* Canvas overlays: `@shopify/react-native-skia`
+* Networking: axios
+* Device info: `expo-device`, `expo-constants`
 
 ### Responsibilities of Mobile Client
 

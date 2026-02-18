@@ -1,14 +1,45 @@
 /**
- * CastSense API Configuration
+ * CastSense API Configuration (Expo)
  * 
  * Environment-based configuration for API endpoints and settings.
  * Uses the centralized environment configuration from env.ts.
+ * Automatically detects backend URL for local development.
  */
 
 import { env, isDev, validateEnvironment } from './env';
+import { getRecommendedBackendUrl, logNetworkInfo } from '../utils/network-detection';
 
 // Validate environment on import (warns in dev, throws in prod)
 validateEnvironment();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Backend URL Detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get the backend base URL
+ * 
+ * Priority:
+ * 1. Explicit API_BASE_URL from environment (.env file)
+ * 2. Auto-detected URL based on device type (simulator vs physical device)
+ * 3. Default localhost fallback
+ */
+function getBackendUrl(): string {
+  // If explicit URL is provided via environment, use it
+  if (env.apiBaseUrl && env.apiBaseUrl !== 'http://localhost:3000') {
+    return env.apiBaseUrl;
+  }
+
+  // Otherwise, auto-detect based on device type
+  const autoDetectedUrl = getRecommendedBackendUrl(3000, 'http://localhost:3000');
+  
+  // In development, log the detection for debugging
+  if (isDev) {
+    logNetworkInfo(3000);
+  }
+
+  return autoDetectedUrl;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration Types
@@ -35,12 +66,13 @@ export interface ApiConfig {
 /**
  * API configuration loaded from environment
  * 
- * Base URL and API key come from env.ts (react-native-config).
+ * Base URL is auto-detected for local development (simulator vs physical device).
+ * API key comes from env.ts (expo-constants).
  * Other values are constants that match backend constraints.
  */
 export const apiConfig: ApiConfig = {
-  // From environment configuration
-  baseUrl: env.apiBaseUrl,
+  // From environment configuration with auto-detection
+  baseUrl: getBackendUrl(),
   apiKey: env.apiKey,
   
   // Timeouts

@@ -1,6 +1,7 @@
 .PHONY: help up down logs shell \
         install dev test lint clean \
         backend-shell backend-test backend-lint backend-logs \
+        mobile-install mobile-start mobile-ios mobile-android mobile-test mobile-prebuild \
         contracts-generate-types
 
 # Colors for output
@@ -11,14 +12,23 @@ help:
 	@echo "$(CYAN)CastSense Development Commands (Docker-based)$(NC)"
 	@echo ""
 	@echo "$(CYAN)Getting Started$(NC)"
-	@echo "  make up                - Start Docker Compose (all services)"
+	@echo "  make up                - Start Docker Compose (backend services)"
 	@echo "  make down              - Stop Docker Compose"
 	@echo "  make logs              - View Docker logs"
 	@echo ""
-	@echo "$(CYAN)Development$(NC)"
+	@echo "$(CYAN)Backend Development$(NC)"
 	@echo "  make shell             - Open shell in backend container"
 	@echo "  make backend-shell     - Open shell in backend service"
+	@echo "  make backend-logs      - View backend service logs"
 	@echo "  make dev               - Start backend dev server (via Docker)"
+	@echo ""
+	@echo "$(CYAN)Mobile Development (Expo)$(NC)"
+	@echo "  make mobile-install    - Install mobile dependencies"
+	@echo "  make mobile-start      - Start Expo dev server"
+	@echo "  make mobile-ios        - Run on iOS device/simulator"
+	@echo "  make mobile-android    - Run on Android device/emulator"
+	@echo "  make mobile-prebuild   - Generate native projects (ios/ android/)"
+	@echo "  make mobile-test       - Run mobile tests"
 	@echo ""
 	@echo "$(CYAN)Testing & Linting$(NC)"
 	@echo "  make test              - Run backend tests in Docker"
@@ -30,7 +40,6 @@ help:
 	@echo ""
 	@echo "$(CYAN)Utilities$(NC)"
 	@echo "  make clean             - Clean all node_modules and build artifacts"
-	@echo "  make backend-logs      - View backend service logs"
 	@echo ""
 
 # Docker Compose commands
@@ -80,11 +89,40 @@ contracts-generate-types:
 	cd contracts && npm install && npm run generate-types
 	@echo "$(CYAN)✓ Types generated for backend and mobile$(NC)"
 
+# Mobile Development (Expo)
+mobile-install:
+	@echo "Installing mobile dependencies..."
+	cd mobile && npm install
+	@echo "$(CYAN)✓ Mobile dependencies installed$(NC)"
+
+mobile-start:
+	@echo "Starting Expo dev server..."
+	@echo "$(CYAN)Scan QR code with Expo Go app or run 'make mobile-ios' or 'make mobile-android'$(NC)"
+	cd mobile && npm start
+
+mobile-ios:
+	@echo "Running on iOS (device or simulator)..."
+	cd mobile && npm run ios
+
+mobile-android:
+	@echo "Running on Android (device or emulator)..."
+	cd mobile && npm run android
+
+mobile-prebuild:
+	@echo "Generating native projects (ios/ and android/)..."
+	cd mobile && npm run prebuild
+	@echo "$(CYAN)✓ Native projects generated$(NC)"
+
+mobile-test:
+	@echo "Running mobile tests..."
+	cd mobile && npm test
+
 # Cleanup
 clean:
 	@echo "Cleaning node_modules and build artifacts..."
 	@rm -rf backend/node_modules mobile/node_modules contracts/node_modules
 	@rm -rf backend/dist mobile/dist contracts/dist
+	@rm -rf mobile/ios mobile/android mobile/.expo
 	@echo "$(CYAN)✓ Clean complete$(NC)"
 
 # Helpful info

@@ -1,12 +1,12 @@
 /**
- * CastSense Mobile Environment Configuration
+ * CastSense Mobile Environment Configuration (Expo)
  *
  * Type-safe environment loading with build-time injection support.
- * Uses react-native-config pattern for environment variable access.
+ * Uses expo-constants for environment variable access.
  *
  * Environment variables are injected at build time via:
- * - .env files (react-native-config)
- * - Metro bundler configuration
+ * - .env files (loaded by app.config.js)
+ * - app.config.js extra field
  * - Build scripts
  *
  * @example
@@ -18,6 +18,8 @@
  * import { env } from './config/env';
  * console.log(env.apiBaseUrl);
  */
+
+import Constants from 'expo-constants';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment Types
@@ -44,29 +46,18 @@ export interface Environment {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// react-native-config Type Declaration
+// Expo Constants Access
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Type declaration for react-native-config
-// Install: npm install react-native-config
-// The actual Config object is injected at build time
-interface RNConfig {
-  API_BASE_URL?: string;
-  API_KEY?: string;
-  ENV_NAME?: string;
-  DEBUG_ENABLED?: string;
-  ANALYTICS_ENABLED?: string;
-  SENTRY_DSN?: string;
-}
-
-// Try to import react-native-config, fallback to empty object
-let Config: RNConfig = {};
-try {
-  // @ts-ignore - react-native-config may not be installed
-  Config = require('react-native-config').default || {};
-} catch {
-  // react-native-config not available, use defaults
-}
+// Access environment variables from app.config.js's `extra` field
+const expoExtra = (Constants.expoConfig?.extra || {}) as {
+  apiBaseUrl?: string;
+  apiKey?: string;
+  environment?: string;
+  debugEnabled?: string | boolean;
+  analyticsEnabled?: string | boolean;
+  sentryDsn?: string;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default Values
@@ -107,8 +98,8 @@ const DEFAULTS = {
  * Detect the current environment based on __DEV__ and ENV_NAME
  */
 function detectEnvironment(): 'development' | 'staging' | 'production' {
-  // First check explicit ENV_NAME from config
-  const envName = Config.ENV_NAME?.toLowerCase();
+  // First check explicit environment from config
+  const envName = expoExtra.environment?.toLowerCase();
   if (envName === 'production' || envName === 'prod') {
     return 'production';
   }
@@ -130,9 +121,12 @@ function detectEnvironment(): 'development' | 'staging' | 'production' {
 /**
  * Parse a boolean-like environment variable
  */
-function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
+function parseBoolean(value: string | boolean | undefined, defaultValue: boolean): boolean {
   if (value === undefined || value === '') {
     return defaultValue;
+  }
+  if (typeof value === 'boolean') {
+    return value;
   }
   return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 }
@@ -145,12 +139,12 @@ function loadEnvironment(): Environment {
   const defaults = DEFAULTS[currentEnv];
 
   return {
-    apiBaseUrl: Config.API_BASE_URL || defaults.apiBaseUrl,
-    apiKey: Config.API_KEY || defaults.apiKey,
+    apiBaseUrl: expoExtra.apiBaseUrl || defaults.apiBaseUrl,
+    apiKey: expoExtra.apiKey || defaults.apiKey,
     envName: currentEnv,
-    debugEnabled: parseBoolean(Config.DEBUG_ENABLED, defaults.debugEnabled),
-    analyticsEnabled: parseBoolean(Config.ANALYTICS_ENABLED, defaults.analyticsEnabled),
-    sentryDsn: Config.SENTRY_DSN || defaults.sentryDsn,
+    debugEnabled: parseBoolean(expoExtra.debugEnabled, defaults.debugEnabled),
+    analyticsEnabled: parseBoolean(expoExtra.analyticsEnabled, defaults.analyticsEnabled),
+    sentryDsn: expoExtra.sentryDsn || defaults.sentryDsn,
   };
 }
 
