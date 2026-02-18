@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CastSense Development Docker Compose Override
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This override provides:
+#   - Volume mount for hot-reload development
+#   - Development environment settings
+#   - No production optimizations
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  backend:
+    build:
+      target: base  # Use base stage with dev dependencies
+    container_name: castsense-backend-dev
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    volumes:
+      # Mount source for hot-reload
+      - ./backend/src:/app/src:ro
+      - ./backend/package.json:/app/package.json:ro
+      - ./backend/tsconfig.json:/app/tsconfig.json:ro
+      # Prevent node_modules from being overwritten
+      - /app/node_modules
+    # Override command for development with hot-reload
+    command: ["npx", "tsx", "watch", "src/index.ts"]

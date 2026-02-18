@@ -1,0 +1,10 @@
+{
+  "client": {
+    "platform": "windows",
+    "app_version": "invalid-version"
+  },
+  "request": {
+    "mode": "unknown",
+    "capture_type": "audio"
+  }
+}

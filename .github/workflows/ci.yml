@@ -1,0 +1,202 @@
+# CastSense CI Pipeline
+# Runs automated acceptance checks per §16 Engineering Checklist
+#
+# Triggers on:
+# - Push to main/develop branches
+# - Pull requests to main/develop
+# - Manual workflow dispatch
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Backend Tests
+  # ─────────────────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run tests
+        run: npm test -- --coverage --ci
+        env:
+          CI: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          directory: backend/coverage
+          flags: backend
+          fail_ci_if_error: false
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Mobile Tests
+  # ─────────────────────────────────────────────────────────────────────────────
+  mobile:
+    name: Mobile Tests
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run tests
+        run: npm test -- --coverage --ci
+        env:
+          CI: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          directory: mobile/coverage
+          flags: mobile
+          fail_ci_if_error: false
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Contract Validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  contracts:
+    name: Contract Schemas
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate schemas exist
+        run: |
+          echo "Checking contract schemas..."
+          for schema in metadata.schema.json response.schema.json result.schema.json error.schema.json; do
+            if [ -f "contracts/$schema" ]; then
+              echo "✓ $schema"
+            else
+              echo "✗ $schema missing"
+              exit 1
+            fi
+          done
+          echo "All contract schemas present"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Docker Build
+  # ─────────────────────────────────────────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: castsense-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Acceptance Summary
+  # ─────────────────────────────────────────────────────────────────────────────
+  acceptance:
+    name: Acceptance Summary
+    runs-on: ubuntu-latest
+    needs: [backend, mobile, contracts, docker]
+    if: always()
+
+    steps:
+      - name: Check results
+        run: |
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "           CastSense Acceptance Check Summary (§16)"
+          echo "═══════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Automated Checks:"
+          echo "  Backend Tests:     ${{ needs.backend.result }}"
+          echo "  Mobile Tests:      ${{ needs.mobile.result }}"
+          echo "  Contract Schemas:  ${{ needs.contracts.result }}"
+          echo "  Docker Build:      ${{ needs.docker.result }}"
+          echo ""
+          echo "───────────────────────────────────────────────────────────────"
+          echo ""
+          echo "Manual QA Required (not automated):"
+          echo "  • C1: Camera capture (photo + video 5-10s)"
+          echo "  • C5: Error UX (GPS/network/server errors)"  
+          echo "  • C6: text_only response handling"
+          echo "  • B6: Media deletion policy"
+          echo ""
+          echo "See docs/acceptance.md for manual test procedures."
+          echo ""
+          
+          # Fail if any required job failed
+          if [[ "${{ needs.backend.result }}" == "failure" || \
+                "${{ needs.mobile.result }}" == "failure" || \
+                "${{ needs.contracts.result }}" == "failure" || \
+                "${{ needs.docker.result }}" == "failure" ]]; then
+            echo "❌ One or more acceptance checks failed"
+            exit 1
+          fi
+          
+          echo "✅ All automated acceptance checks passed"

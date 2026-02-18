@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://castsense.app/schemas/error/0.1.0",
+  "title": "CastSense Error Response",
+  "description": "Standard error response per spec §10.1",
+  "type": "object",
+  "required": ["request_id", "status", "error"],
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this request"
+    },
+    "status": {
+      "type": "string",
+      "const": "error",
+      "description": "Always 'error' for error responses"
+    },
+    "error": {
+      "type": "object",
+      "description": "Error details",
+      "required": ["code", "message", "retryable"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "NO_GPS",
+            "NO_NETWORK",
+            "INVALID_MEDIA",
+            "AI_TIMEOUT",
+            "ENRICHMENT_FAILED",
+            "UNKNOWN"
+          ],
+          "description": "Error code"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message",
+          "maxLength": 500
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "Whether the client should retry this request"
+        },
+        "details": {
+          "type": "object",
+          "description": "Additional error details",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

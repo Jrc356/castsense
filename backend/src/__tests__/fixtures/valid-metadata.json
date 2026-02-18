@@ -1,0 +1,30 @@
+{
+  "client": {
+    "platform": "ios",
+    "app_version": "1.0.0",
+    "device_model": "iPhone 15 Pro",
+    "locale": "en-US",
+    "timezone": "America/Chicago"
+  },
+  "request": {
+    "mode": "general",
+    "target_species": null,
+    "platform_context": "shore",
+    "gear_type": "spinning",
+    "capture_type": "photo",
+    "capture_timestamp_utc": "2026-02-17T14:30:00Z"
+  },
+  "location": {
+    "lat": 36.1234,
+    "lon": -95.5678,
+    "accuracy_m": 5.0,
+    "altitude_m": 200,
+    "heading_deg": 45,
+    "speed_mps": 0
+  },
+  "user_constraints": {
+    "lures_available": ["Senko", "Spinnerbait", "Crankbait"],
+    "line_test_lb": 12,
+    "notes": "Fishing from the dock"
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "mode": "general",
+  "likely_species": [
+    { "species": "Largemouth Bass", "confidence": 0.85 },
+    { "species": "Bluegill", "confidence": 0.60 }
+  ],
+  "analysis_frame": {
+    "type": "photo",
+    "width_px": 1920,
+    "height_px": 1080
+  },
+  "zones": [
+    {
+      "zone_id": "Z1",
+      "label": "Primary",
+      "confidence": 0.9,
+      "target_species": "Largemouth Bass",
+      "polygon": [
+        [0.1, 0.2],
+        [0.3, 0.2],
+        [0.3, 0.5],
+        [0.1, 0.5]
+      ],
+      "cast_arrow": {
+        "start": [0.5, 0.8],
+        "end": [0.2, 0.35]
+      },
+      "retrieve_path": [
+        [0.2, 0.35],
+        [0.25, 0.4],
+        [0.35, 0.6],
+        [0.5, 0.8]
+      ],
+      "style": {
+        "priority": 1,
+        "hint": "cover"
+      }
+    },
+    {
+      "zone_id": "Z2",
+      "label": "Secondary",
+      "confidence": 0.75,
+      "target_species": "Largemouth Bass",
+      "polygon": [
+        [0.6, 0.1],
+        [0.9, 0.1],
+        [0.9, 0.4],
+        [0.6, 0.4]
+      ],
+      "cast_arrow": {
+        "start": [0.5, 0.7],
+        "end": [0.75, 0.25]
+      },
+      "style": {
+        "priority": 2,
+        "hint": "structure"
+      }
+    }
+  ],
+  "tactics": [
+    {
+      "zone_id": "Z1",
+      "recommended_rig": "Texas-rigged Senko (green pumpkin)",
+      "alternate_rigs": ["Wacky-rigged Senko", "Ned rig"],
+      "target_depth": "3-5 feet",
+      "retrieve_style": "Slow fall with twitches",
+      "cadence": "Cast, let sink 3 seconds, twitch twice, repeat",
+      "cast_count_suggestion": "5-7 casts",
+      "why_this_zone_works": [
+        "Fallen timber provides excellent cover",
+        "Shaded area during midday",
+        "Transition from deep to shallow water"
+      ],
+      "steps": [
+        "Cast past the zone and let it sink",
+        "Slowly drag across the bottom",
+        "Pause near structure"
+      ]
+    },
+    {
+      "zone_id": "Z2",
+      "recommended_rig": "Spinnerbait (white/chartreuse)",
+      "target_depth": "2-4 feet",
+      "retrieve_style": "Steady medium retrieve",
+      "why_this_zone_works": [
+        "Rocky point concentrates baitfish",
+        "Current break on downstream side"
+      ]
+    }
+  ],
+  "conditions_summary": [
+    "Clear skies, light wind from SW",
+    "Water temp around 68°F",
+    "Post-frontal conditions - fish may be sluggish"
+  ],
+  "plan_summary": [
+    "Focus on shaded cover in Zone 1 first",
+    "Work the point in Zone 2 if no action",
+    "Slow presentations recommended given conditions"
+  ],
+  "explainability": {
+    "scene_observations": [
+      "Fallen timber visible in water",
+      "Rocky point extending into lake",
+      "Overhanging vegetation providing shade"
+    ],
+    "assumptions": [
+      "Assumed typical summer bass behavior",
+      "Water clarity appears moderate"
+    ]
+  }
+}

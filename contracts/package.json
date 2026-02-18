@@ -1,0 +1,29 @@
+{
+  "name": "@castsense/contracts",
+  "version": "0.1.0",
+  "description": "CastSense JSON Schema contracts and type generation",
+  "main": "index.js",
+  "scripts": {
+    "generate-types": "tsx scripts/generate-types.ts",
+    "validate": "ajv validate -s metadata.schema.json -d test/metadata.example.json",
+    "lint-schemas": "ajv compile -s '*.schema.json'"
+  },
+  "keywords": [
+    "castsense",
+    "contracts",
+    "json-schema",
+    "typescript"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "json-schema-to-typescript": "^13.1.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  }
+}

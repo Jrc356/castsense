@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CastSense Docker Compose Configuration
+#
+# Usage:
+#   docker-compose up -d        # Start services
+#   docker-compose down         # Stop services
+#   docker-compose logs -f      # View logs
+#   docker-compose up --build   # Rebuild and start
+#
+# For development with hot-reload, use:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Backend API Service
+  # ───────────────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: castsense-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Server Configuration
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=${NODE_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - BUILD_VERSION=${BUILD_VERSION:-}
+
+      # Authentication
+      - API_KEY=${API_KEY:-}
+
+      # AI Provider (Required)
+      - AI_PROVIDER_API_KEY=${AI_PROVIDER_API_KEY:?AI_PROVIDER_API_KEY is required}
+      - AI_PROVIDER_BASE_URL=${AI_PROVIDER_BASE_URL:-}
+      - AI_MODEL=${AI_MODEL:-gpt-4o}
+      - AI_TWO_STAGE_ENABLED=${AI_TWO_STAGE_ENABLED:-false}
+
+      # Enrichment APIs
+      - WEATHER_API_KEY=${WEATHER_API_KEY:-}
+      - GEOCODE_API_KEY=${GEOCODE_API_KEY:-}
+
+      # Object Storage
+      - OBJECT_STORE_BUCKET=${OBJECT_STORE_BUCKET:-}
+      - OBJECT_STORE_REGION=${OBJECT_STORE_REGION:-}
+
+      # Media Processing
+      - MEDIA_TTL_SECONDS=${MEDIA_TTL_SECONDS:-3600}
+      - MAX_PHOTO_BYTES=${MAX_PHOTO_BYTES:-8388608}
+      - MAX_VIDEO_BYTES=${MAX_VIDEO_BYTES:-26214400}
+      - MAX_IMAGE_DIMENSION=${MAX_IMAGE_DIMENSION:-1920}
+      - KEYFRAME_MAX_DIMENSION=${KEYFRAME_MAX_DIMENSION:-1280}
+
+      # Timeouts
+      - ENRICHMENT_TIMEOUT_MS=${ENRICHMENT_TIMEOUT_MS:-2000}
+      - AI_TIMEOUT_MS_PHOTO=${AI_TIMEOUT_MS_PHOTO:-12000}
+      - AI_TIMEOUT_MS_VIDEO=${AI_TIMEOUT_MS_VIDEO:-18000}
+      - BACKEND_TIMEOUT_MS=${BACKEND_TIMEOUT_MS:-30000}
+
+      # Rate Limiting
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-60}
+      - RATE_LIMIT_CONCURRENCY=${RATE_LIMIT_CONCURRENCY:-10}
+
+      # Privacy
+      - LOG_LOCATION_ENABLED=${LOG_LOCATION_ENABLED:-false}
+
+      # Hydrology
+      - HYDROLOGY_API_KEY=${HYDROLOGY_API_KEY:-}
+      - HYDROLOGY_API_URL=${HYDROLOGY_API_URL:-}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+    # Uncomment if you need to persist media files
+    # volumes:
+    #   - media-data:/app/media
+    networks:
+      - castsense-network
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  castsense-network:
+    driver: bridge
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volumes (uncomment if needed)
+# ─────────────────────────────────────────────────────────────────────────────
+# volumes:
+#   media-data:
