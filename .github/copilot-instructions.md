@@ -5,48 +5,49 @@ Purpose
 -------
 Provide quick, actionable guidance for AI assistants and contributors to run, test, and reason about this repo.
 
-Quick Start (local)
--------------------
-- **Backend**: install and run development server
+Quick Start (Docker with Make)
+------------------------------
+All development is Docker-based. Use the Makefile for common tasks:
 
 ```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev
+make help                    # Show all available commands
+make up                      # Start all services in Docker
+make backend-test            # Run backend tests
+make contracts-generate-types # Generate types from schemas
+make down                    # Stop all services
 ```
 
-- **Mobile**: install and start Metro / run on device
-
+### Backend Development
 ```bash
-cd mobile
-npm install
-npx pod-install   # macOS iOS only
-npm start
-npm run ios|android
+make up               # Start services
+make backend-shell    # Open shell in backend container
+make backend-logs     # View backend logs
 ```
 
-- **Contracts / Types**: generate shared TypeScript types
-
+### Type Generation
 ```bash
-cd contracts
-npm install
-npm run generate-types
+make contracts-generate-types
 ```
+
+This outputs types to both `mobile/src/types/contracts.ts` and `backend/src/types/contracts.ts`.
 
 Tests & CI
 ----------
-- Backend tests: `cd backend && npm test` (Jest configured; CI runs `npm test -- --coverage --ci`). See [backend/jest.config.js](backend/jest.config.js#L1).
-- Mobile tests: `cd mobile && npm test` (Jest + ts-jest). See [mobile/jest.config.js](mobile/jest.config.js#L1).
+- Backend tests: `make backend-test` (runs in Docker via Jest). Full coverage test: `make backend-test -- --coverage --ci`. See [backend/jest.config.js](backend/jest.config.js#L1).
+- Mobile tests: can be run with `docker-compose exec mobile npm test` (Jest + ts-jest). See [mobile/jest.config.js](mobile/jest.config.js#L1).
 - CI pipeline and expectations are in [.github/workflows/ci.yml](.github/workflows/ci.yml#L1).
 
 Docker & Local Compose
 ----------------------
-- The repo provides `docker-compose.yml` and a development override `docker-compose.dev.yml`. Use:
+All development is Docker-based through the Makefile. Use:
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+make up            # Start all services (docker-compose.yml + docker-compose.dev.yml)
+make down          # Stop all services
+make logs          # View service logs
 ```
+
+The Docker Compose files are located at [docker-compose.yml](docker-compose.yml#L1) and [docker-compose.dev.yml](docker-compose.dev.yml#L1).
 
 Conventions & Notes
 -------------------

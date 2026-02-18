@@ -20,24 +20,52 @@ castsense/
 
 ### Prerequisites
 
-- Node.js >= 20.x
+- Docker & Docker Compose
+- Node.js >= 20.x (for local contracts type generation)
 - npm >= 10.x
-- For mobile: React Native CLI, Xcode (iOS), Android Studio (Android)
 
-### Backend Development
+### Using Make (Recommended)
+
+The easiest way to get started is with the included Makefile:
 
 ```bash
-cd backend
-npm install
-cp .env.example .env
-# Edit .env with your API keys
-npm run dev
+make help                          # See all available commands
+make up                            # Start all services in Docker
+make logs                          # View service logs
+make backend-test                  # Run backend tests in Docker
+make contracts-generate-types      # Generate TypeScript types from schemas
 ```
 
-The backend will start on `http://localhost:3000`. Test the health endpoint:
+The backend API will be available at `http://localhost:3000`:
 
 ```bash
 curl http://localhost:3000/v1/health
+```
+
+To stop the services:
+
+```bash
+make down
+```
+
+### Backend Development (Docker)
+
+Start the development environment:
+
+```bash
+make up
+```
+
+Then open a shell in the backend container:
+
+```bash
+make backend-shell
+```
+
+Or view live logs:
+
+```bash
+make backend-logs
 ```
 
 ### Type Generation
@@ -45,28 +73,12 @@ curl http://localhost:3000/v1/health
 Generate TypeScript types from JSON Schemas:
 
 ```bash
-cd contracts
-npm install
-npm run generate-types
+make contracts-generate-types
 ```
 
 This outputs types to:
 - `mobile/src/types/contracts.ts`
 - `backend/src/types/contracts.ts`
-
-### Mobile Development
-
-```bash
-cd mobile
-npm install
-npx pod-install  # iOS only
-
-# Run on iOS
-npm run ios
-
-# Run on Android
-npm run android
-```
 
 ## API Endpoints
 
