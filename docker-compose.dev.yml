@@ -13,7 +13,7 @@
 services:
   backend:
     build:
-      target: base  # Use base stage with dev dependencies
+      target: dev  # Use dev stage which includes installed dependencies
     container_name: castsense-backend-dev
     environment:
       - NODE_ENV=development
@@ -23,7 +23,8 @@ services:
       - ./backend/src:/app/src:ro
       - ./backend/package.json:/app/package.json:ro
       - ./backend/tsconfig.json:/app/tsconfig.json:ro
-      # Prevent node_modules from being overwritten
-      - /app/node_modules
+      # Note: do NOT mount /app/node_modules here so the image-provided
+      # node_modules (built in the `dev` image) are available inside the
+      # container. This avoids missing-dependency errors on cold starts.
     # Override command for development with hot-reload
     command: ["npx", "tsx", "watch", "src/index.ts"]

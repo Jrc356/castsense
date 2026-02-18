@@ -45,7 +45,13 @@ help:
 # Docker Compose commands
 up:
 	@echo "$(CYAN)Starting Docker Compose (development)...$(NC)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	# Ensure a .env exists so docker-compose interpolation never fails in local dev
+	@if [ ! -f .env ]; then \
+		echo "Creating .env with dummy values (safe for local development)"; \
+		printf '%s\n' "AI_PROVIDER_API_KEY=local_dummy_key" "API_KEY=local_dummy_api_KEY" "NODE_ENV=development" "LOG_LEVEL=debug" > .env; \
+	fi
+	# Always build images before starting to ensure dev changes are included
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --force-recreate
 	@echo "$(CYAN)✓ Services started$(NC)"
 	@echo "Backend API: http://localhost:3000"
 
@@ -62,6 +68,18 @@ shell: backend-shell
 backend-shell:
 	@echo "Opening shell in backend service..."
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec backend sh
+
+# Install backend dependencies inside the running backend container (dev)
+backend-install:
+	@echo "Installing backend dependencies in backend container..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec backend npm install --no-audit --no-fund
+
+# Dev setup: build dev image, start services, and ensure deps are installed
+dev-setup:
+	@echo "Building backend dev image and starting services..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build backend
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	$(MAKE) backend-install
 
 backend-logs:
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f backend

@@ -6,6 +6,7 @@
 # Base stage with Node.js and FFmpeg
 FROM node:20-alpine AS base
 RUN apk add --no-cache ffmpeg
+WORKDIR /app
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Build stage - compile TypeScript
@@ -17,6 +18,23 @@ WORKDIR /app
 # Install dependencies first (better layer caching)
 COPY package*.json ./
 RUN npm ci
+
+# -----------------------------------------------------------------------------
+# Development stage - build a dev image with dependencies installed so dev
+# containers start with `node_modules` present. Use by setting build target
+# to `dev` in docker-compose.dev.yml.
+# -----------------------------------------------------------------------------
+FROM base AS dev
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+# Create non-root user for security (match production user)
+RUN addgroup -g 1001 -S nodejs && \
+  adduser -S nodejs -u 1001 && \
+  chown -R nodejs:nodejs /app
+
+USER nodejs
 
 # Copy source and build
 COPY tsconfig.json ./

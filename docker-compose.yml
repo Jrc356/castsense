@@ -36,8 +36,9 @@ services:
       # Authentication
       - API_KEY=${API_KEY:-}
 
-      # AI Provider (Required)
-      - AI_PROVIDER_API_KEY=${AI_PROVIDER_API_KEY:?AI_PROVIDER_API_KEY is required}
+      # AI Provider
+      # Allow missing API key in local/dev environments (use empty/default)
+      - AI_PROVIDER_API_KEY=${AI_PROVIDER_API_KEY:-}
       - AI_PROVIDER_BASE_URL=${AI_PROVIDER_BASE_URL:-}
       - AI_MODEL=${AI_MODEL:-gpt-4o}
       - AI_TWO_STAGE_ENABLED=${AI_TWO_STAGE_ENABLED:-false}
@@ -79,21 +80,3 @@ services:
       timeout: 10s
       start_period: 5s
       retries: 3
-    # Uncomment if you need to persist media files
-    # volumes:
-    #   - media-data:/app/media
-    networks:
-      - castsense-network
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Networks
-# ─────────────────────────────────────────────────────────────────────────────
-networks:
-  castsense-network:
-    driver: bridge
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Volumes (uncomment if needed)
-# ─────────────────────────────────────────────────────────────────────────────
-# volumes:
-#   media-data:

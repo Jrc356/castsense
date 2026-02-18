@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "commonjs",
-    "lib": ["es2019", "es2020.promise", "es2020.string"],
+    "lib": [
+      "es2019",
+      "es2020.promise",
+      "es2020.string"
+    ],
     "allowJs": true,
     "jsx": "react-native",
     "noEmit": true,
@@ -11,7 +15,9 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
@@ -22,8 +28,21 @@
     "noImplicitReturns": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "types": ["react-native", "jest"]
+    "types": [
+      "react-native",
+      "jest"
+    ]
   },
-  "include": ["src/**/*", "App.tsx", "index.js"],
-  "exclude": ["node_modules", "babel.config.js", "metro.config.js", "jest.config.js"]
+  "include": [
+    "src/**/*",
+    "App.tsx",
+    "index.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js"
+  ],
+  "extends": "expo/tsconfig.base"
 }
