@@ -5,6 +5,7 @@ module.exports = {
     version: '1.0.0',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
+    jsEngineName: 'hermes',
     splash: {
       resizeMode: 'contain',
       backgroundColor: '#ffffff',
