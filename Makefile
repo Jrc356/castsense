@@ -113,7 +113,7 @@ mobile-install:
 	cd mobile && npm install
 	@echo "$(CYAN)✓ Mobile dependencies installed$(NC)"
 
-mobile-start:
+mobile-start: mobile-install
 	@echo "Starting Expo dev server..."
 	@echo "$(CYAN)Scan QR code with Expo Go app or run 'make mobile-ios' or 'make mobile-android'$(NC)"
 	cd mobile && npm start
