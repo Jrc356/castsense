@@ -4,8 +4,8 @@ module.exports = {
     slug: 'castsense',
     version: '1.0.0',
     orientation: 'portrait',
-    userInterfaceStyle: 'light',
-    jsEngineName: 'hermes',
+    userInterfaceStyle: 'dark',
+    jsEngine: 'jsc',
     splash: {
       resizeMode: 'contain',
       backgroundColor: '#ffffff',
