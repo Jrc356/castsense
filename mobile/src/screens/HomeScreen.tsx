@@ -25,7 +25,11 @@ import {useAppNavigation} from '../navigation/hooks';
 import {
   requestCapturePermissions,
   requestLocationPermission,
+  requestLibraryPermissions,
 } from '../services/permissions';
+import {pickMediaFromLibrary, type LibraryMediaResult} from '../services/camera';
+import {collectMetadata, extractExifMetadata, getCurrentLocation} from '../services/metadata';
+import {analyzeMedia, type UploadProgress} from '../services/api';
 import type {
   AnalysisMode,
   CaptureType,
@@ -106,6 +110,7 @@ export function HomeScreen(): React.JSX.Element {
   const [platform, setPlatform] = useState<PlatformContext | null>(state.platformContext);
   const [gear, setGear] = useState<GearType>(state.gearType);
   const [notes, setNotes] = useState<string>(state.userConstraints.notes || '');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Handle mode selection
   const handleModeSelect = useCallback((mode: AnalysisMode) => {
@@ -174,6 +179,218 @@ export function HomeScreen(): React.JSX.Element {
     startCapture,
     navigation,
   ]);
+
+  // Handle library selection flow
+  const handleSelectFromLibrary = useCallback(async () => {
+    if (!selectedMode) {
+      Alert.alert('Select Mode', 'Please select an analysis mode first.');
+      return;
+    }
+
+    if (selectedMode === 'specific' && !targetSpecies.trim()) {
+      Alert.alert('Enter Species', 'Please enter a target species for Specific mode.');
+      return;
+    }
+
+    try {
+      // Request library and location permissions
+      const permissions = await requestLibraryPermissions();
+      
+      if (!permissions.mediaLibrary) {
+        Alert.alert(
+          'Photo Library Required',
+          'Photo library permission is required to select existing photos and videos.',
+        );
+        return;
+      }
+
+      // Pick media from library
+      const media = await pickMediaFromLibrary();
+      
+      if (!media) {
+        // User canceled selection
+        return;
+      }
+
+      // Update app state with mode and constraints
+      selectMode(selectedMode, selectedMode === 'specific' ? targetSpecies.trim() : undefined);
+      
+      if (platform) {
+        setPlatformContext(platform);
+      }
+      
+      setGearType(gear);
+      
+      if (notes.trim()) {
+        setUserConstraints({ notes: notes.trim() });
+      }
+
+      // Start capture state (for upload/analysis flow)
+      startCapture(media.type);
+
+      // Handle EXIF data: let user choose between original or current location/time
+      let useExifData = false;
+      if (media.exif && (media.exif.location || media.exif.timestamp)) {
+        useExifData = await showExifChoiceDialog(media.exif);
+      }
+
+      // Collect metadata
+      let captureTimestamp = new Date();
+      let includeLocation = true;
+      
+      if (useExifData && media.exif) {
+        const exifMetadata = extractExifMetadata(media.exif);
+        
+        // Use EXIF timestamp if available
+        if (exifMetadata.timestamp) {
+          captureTimestamp = exifMetadata.timestamp;
+        }
+        
+        // Collect metadata with EXIF location instead of current location
+        const metadata = await collectMetadata({
+          mode: selectedMode,
+          targetSpecies: selectedMode === 'specific' ? targetSpecies.trim() : undefined,
+          platformContext: platform || undefined,
+          gearType: gear,
+          captureType: media.type,
+          captureTimestamp,
+          userConstraints: notes.trim() ? { notes: notes.trim() } : undefined,
+          includeLocation: false, // We'll add EXIF location manually
+        });
+
+        // Add EXIF location to metadata
+        if (exifMetadata.location) {
+          metadata.location = {
+            lat: exifMetadata.location.lat,
+            lon: exifMetadata.location.lon,
+            altitude_m: exifMetadata.location.altitude_m,
+          };
+        }
+
+        // Upload and analyze
+        await uploadAndAnalyze(media.uri, media.mimeType, metadata);
+      } else {
+        // Use current location and timestamp
+        const metadata = await collectMetadata({
+          mode: selectedMode,
+          targetSpecies: selectedMode === 'specific' ? targetSpecies.trim() : undefined,
+          platformContext: platform || undefined,
+          gearType: gear,
+          captureType: media.type,
+          captureTimestamp,
+          userConstraints: notes.trim() ? { notes: notes.trim() } : undefined,
+          includeLocation: true,
+        });
+
+        // Upload and analyze
+        await uploadAndAnalyze(media.uri, media.mimeType, metadata);
+      }
+
+    } catch (error) {
+      console.error('Library selection error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to select media';
+      
+      Alert.alert('Error', errorMessage);
+      setIsProcessing(false);
+    }
+  }, [
+    selectedMode,
+    targetSpecies,
+    platform,
+    gear,
+    notes,
+    selectMode,
+    setPlatformContext,
+    setGearType,
+    setUserConstraints,
+    startCapture,
+  ]);
+
+  // Show EXIF location/timestamp choice dialog
+  const showExifChoiceDialog = (exif: NonNullable<LibraryMediaResult['exif']>): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const locationText = exif.location
+        ? `${exif.location.latitude.toFixed(4)}, ${exif.location.longitude.toFixed(4)}`
+        : 'Not available';
+      
+      const timestampText = exif.timestamp
+        ? exif.timestamp.toLocaleDateString() + ' at ' + exif.timestamp.toLocaleTimeString()
+        : 'Not available';
+      
+      const message = `This photo contains embedded location and time data:\n\nOriginal: ${locationText}\n${timestampText}\n\nWould you like to use this original data, or use your current location and time?`;
+
+      Alert.alert(
+        'Use Original Location & Time?',
+        message,
+        [
+          {
+            text: 'Use Current',
+            onPress: () => resolve(false),
+            style: 'cancel',
+          },
+          {
+            text: 'Use Original',
+            onPress: () => resolve(true),
+          },
+        ],
+        { cancelable: false }
+      );
+    });
+  };
+
+  // Upload and analyze media
+  const uploadAndAnalyze = useCallback(async (
+    uri: string,
+    mimeType: string,
+    metadata: any
+  ) => {
+    try {
+      setIsProcessing(true);
+
+      // Upload and analyze
+      const response = await analyzeMedia(
+        { uri, mimeType },
+        metadata,
+        (progress: UploadProgress) => {
+          // Progress tracking could be added here
+          console.log('Upload progress:', progress.percentage);
+        }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Analysis failed');
+      }
+
+      // Navigate to results
+      navigation.navigate('Results', {
+        result: {
+          request_id: response.data.request_id,
+          status: response.data.status,
+          rendering_mode: response.data.rendering_mode,
+          result: response.data.result,
+          context_pack: response.data.context_pack,
+          timings_ms: response.data.timings_ms,
+          enrichment_status: response.data.enrichment_status,
+        },
+        mediaUri: uri,
+      });
+
+    } catch (error) {
+      console.error('Upload/analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      
+      navigation.navigate('Error', {
+        error: {
+          code: 'UPLOAD_FAILED',
+          message: errorMessage,
+          retryable: true,
+        },
+        canRetry: true,
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -280,6 +497,7 @@ export function HomeScreen(): React.JSX.Element {
             style={[styles.captureButton, styles.photoButton]}
             onPress={() => handleStartCapture('photo')}
             activeOpacity={0.8}
+            disabled={isProcessing}
           >
             <Text style={styles.captureButtonText}>Take Photo</Text>
           </TouchableOpacity>
@@ -288,9 +506,22 @@ export function HomeScreen(): React.JSX.Element {
             style={[styles.captureButton, styles.videoButton]}
             onPress={() => handleStartCapture('video')}
             activeOpacity={0.8}
+            disabled={isProcessing}
           >
             <Text style={styles.captureButtonText}>Record Video</Text>
             <Text style={styles.captureButtonSubtext}>5-10 seconds</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.captureButton, styles.libraryButton]}
+            onPress={handleSelectFromLibrary}
+            activeOpacity={0.8}
+            disabled={isProcessing}
+          >
+            <Text style={styles.captureButtonText}>
+              {isProcessing ? 'Processing...' : 'Select from Library'}
+            </Text>
+            <Text style={styles.captureButtonSubtext}>Choose existing photo or video</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -406,6 +637,9 @@ const styles = StyleSheet.create({
   },
   videoButton: {
     backgroundColor: '#FF3B30',
+  },
+  libraryButton: {
+    backgroundColor: '#34C759',
   },
   captureButtonText: {
     fontSize: 17,

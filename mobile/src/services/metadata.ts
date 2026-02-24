@@ -132,6 +132,45 @@ export async function getCurrentLocation(): Promise<LocationData | null> {
 }
 
 /**
+ * Extract location and timestamp from EXIF data
+ * Used when selecting existing photos from library
+ */
+export interface ExifMetadata {
+  location?: {
+    latitude: number;
+    longitude: number;
+    altitude?: number;
+  };
+  timestamp?: Date;
+}
+
+export function extractExifMetadata(exifData: ExifMetadata | undefined): {
+  location: LocationData | null;
+  timestamp: Date | null;
+} {
+  if (!exifData) {
+    return { location: null, timestamp: null };
+  }
+
+  let location: LocationData | null = null;
+  if (exifData.location) {
+    location = {
+      lat: exifData.location.latitude,
+      lon: exifData.location.longitude,
+      altitude_m: exifData.location.altitude,
+      // EXIF doesn't include accuracy, heading, or speed
+      accuracy_m: undefined,
+      heading_deg: undefined,
+      speed_mps: undefined,
+    };
+  }
+
+  const timestamp = exifData.timestamp || null;
+
+  return { location, timestamp };
+}
+
+/**
  * Watch location for continuous updates
  * Returns a cleanup function to stop watching
  */

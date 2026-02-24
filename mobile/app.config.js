@@ -21,6 +21,8 @@ module.exports = {
           'CastSense needs access to your microphone to record audio with videos.',
         NSLocationWhenInUseUsageDescription:
           'CastSense needs your location to provide accurate environmental context for tactical analysis.',
+        NSPhotoLibraryUsageDescription:
+          'CastSense needs access to your photo library to analyze existing photos and videos.',
       },
     },
     android: {
@@ -33,6 +35,8 @@ module.exports = {
         'RECORD_AUDIO',
         'ACCESS_FINE_LOCATION',
         'ACCESS_COARSE_LOCATION',
+        'READ_MEDIA_IMAGES',
+        'READ_MEDIA_VIDEO',
       ],
     },
     platforms: ['ios', 'android'],

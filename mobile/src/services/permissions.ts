@@ -22,9 +22,10 @@ export interface PermissionState {
   camera: PermissionStatus;
   microphone: PermissionStatus;
   location: PermissionStatus;
+  mediaLibrary: PermissionStatus;
 }
 
-export type PermissionType = 'camera' | 'microphone' | 'location';
+export type PermissionType = 'camera' | 'microphone' | 'location' | 'mediaLibrary';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Permission Status Conversion
@@ -44,16 +45,18 @@ function convertStatus(expoStatus: any): PermissionStatus {
  * Check all required permissions
  */
 export async function checkAllPermissions(): Promise<PermissionState> {
-  const [cameraStatus, microphoneStatus, locationStatus] = await Promise.all([
+  const [cameraStatus, microphoneStatus, locationStatus, mediaLibraryStatus] = await Promise.all([
     Camera.getCameraPermissionsAsync(),
     Camera.getMicrophonePermissionsAsync(),
     Location.getForegroundPermissionsAsync(),
+    ImagePicker.getMediaLibraryPermissionsAsync(),
   ]);
 
   return {
     camera: convertStatus(cameraStatus),
     microphone: convertStatus(microphoneStatus),
     location: convertStatus(locationStatus),
+    mediaLibrary: convertStatus(mediaLibraryStatus),
   };
 }
 
@@ -74,6 +77,9 @@ export async function isPermissionGranted(
       break;
     case 'location':
       status = await Location.getForegroundPermissionsAsync();
+      break;
+    case 'mediaLibrary':
+      status = await ImagePicker.getMediaLibraryPermissionsAsync();
       break;
   }
 
@@ -101,6 +107,9 @@ export async function requestPermission(
       break;
     case 'location':
       result = await Location.requestForegroundPermissionsAsync();
+      break;
+    case 'mediaLibrary':
+      result = await ImagePicker.requestMediaLibraryPermissionsAsync();
       break;
   }
 
@@ -159,6 +168,23 @@ export async function requestLocationPermission(): Promise<boolean> {
 }
 
 /**
+ * Request media library permission with rationale
+ */
+export async function requestMediaLibraryPermission(): Promise<boolean> {
+  const status = await requestPermission('mediaLibrary');
+  
+  if (status === 'denied') {
+    showPermissionDeniedAlert(
+      'Photo Library Permission Required',
+      'CastSense needs access to your photo library to analyze existing photos and videos.'
+    );
+    return false;
+  }
+  
+  return status === 'granted';
+}
+
+/**
  * Request all permissions needed for capture
  */
 export async function requestCapturePermissions(): Promise<{
@@ -173,6 +199,22 @@ export async function requestCapturePermissions(): Promise<{
   return {
     camera,
     microphone,
+    location,
+  };
+}
+
+/**
+ * Request permissions needed for library selection
+ */
+export async function requestLibraryPermissions(): Promise<{
+  mediaLibrary: boolean;
+  location: boolean;
+}> {
+  const mediaLibrary = await requestMediaLibraryPermission();
+  const location = await requestLocationPermission();
+
+  return {
+    mediaLibrary,
     location,
   };
 }
