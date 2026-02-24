@@ -31,7 +31,7 @@ import {useApp} from '../state/AppContext';
 import {
   useAppNavigation,
   useCaptureRoute,
-} from '../navigation/AppNavigator';
+} from '../navigation/hooks';
 import {
   capturePhoto,
   startVideoCapture,

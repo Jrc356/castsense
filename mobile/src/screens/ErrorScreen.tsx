@@ -13,7 +13,7 @@ import React, {useCallback, useMemo} from 'react';
 import {StyleSheet} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {useAppNavigation, useErrorRoute} from '../navigation/AppNavigator';
+import {useAppNavigation, useErrorRoute} from '../navigation/hooks';
 import {useApp} from '../state/AppContext';
 import {
   LocationErrorView,

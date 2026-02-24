@@ -21,7 +21,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {useApp} from '../state/AppContext';
-import {useAppNavigation} from '../navigation/AppNavigator';
+import {useAppNavigation} from '../navigation/hooks';
 import {
   requestCapturePermissions,
   requestLocationPermission,

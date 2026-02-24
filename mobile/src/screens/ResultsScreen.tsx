@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {useAppNavigation, useResultsRoute} from '../navigation/AppNavigator';
+import {useAppNavigation, useResultsRoute} from '../navigation/hooks';
 import {useApp} from '../state/AppContext';
 import type {CastSenseAnalysisResult, Tactic} from '../types/contracts';
 import {OverlayCanvas} from '../components/overlays';

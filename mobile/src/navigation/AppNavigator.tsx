@@ -16,33 +16,11 @@ import {HomeScreen} from '../screens/HomeScreen';
 import {CaptureScreen} from '../screens/CaptureScreen';
 import {ResultsScreen} from '../screens/ResultsScreen';
 import {ErrorScreen} from '../screens/ErrorScreen';
-import {type CaptureType, type AnalysisResult, type AppError} from '../state/machine';
+import type {RootStackParamList} from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Navigation Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type RootStackParamList = {
-  Home: undefined;
-  Capture: {
-    captureType: CaptureType;
-  };
-  Results: {
-    result: AnalysisResult;
-    mediaUri: string;
-  };
-  Error: {
-    error: AppError;
-    canRetry: boolean;
-  };
-};
-
-// Type helper for screens
-declare global {
-  namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList {}
-  }
-}
+// Re-export types and hooks for convenience
+export type {RootStackParamList} from './types';
+export {useAppNavigation, useCaptureRoute, useResultsRoute, useErrorRoute, type NavigationProp} from './hooks';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Navigator
@@ -110,35 +88,4 @@ export function AppNavigator(): React.JSX.Element {
       />
     </Stack.Navigator>
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Navigation Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
-import {type NativeStackNavigationProp} from '@react-navigation/native-stack';
-
-export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-/**
- * Typed navigation hook
- */
-export function useAppNavigation() {
-  return useNavigation<NavigationProp>();
-}
-
-/**
- * Typed route hook for specific screens
- */
-export function useCaptureRoute() {
-  return useRoute<RouteProp<RootStackParamList, 'Capture'>>();
-}
-
-export function useResultsRoute() {
-  return useRoute<RouteProp<RootStackParamList, 'Results'>>();
-}
-
-export function useErrorRoute() {
-  return useRoute<RouteProp<RootStackParamList, 'Error'>>();
 }
