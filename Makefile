@@ -34,7 +34,7 @@ help:
 # Setup & Installation
 install:
 	@echo "Installing dependencies for mobile and contracts..."
-	cd mobile && npm install
+	cd mobile && npm install --legacy-peer-deps
 	cd contracts && npm install
 
 setup: install
