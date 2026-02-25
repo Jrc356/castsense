@@ -105,7 +105,7 @@ export function ErrorScreen(): React.JSX.Element {
             errorCode={(error.code as ServerErrorCode) || 'UNKNOWN'}
             message={error.message}
             retryable={canRetry && error.retryable}
-            details={error.details}
+            details={error.details as Record<string, unknown> | undefined}
             onRetry={handleRetry}
             onViewFallback={
               error.code === 'ENRICHMENT_FAILED' ? handleViewFallback : undefined
@@ -119,9 +119,9 @@ export function ErrorScreen(): React.JSX.Element {
           <MediaErrorView
             message={error.message}
             validationIssue={
-              error.details?.validationIssue as string | undefined
+              (error.details as Record<string, unknown> | undefined)?.validationIssue as string | undefined
             }
-            details={error.details}
+            details={error.details as Record<string, unknown> | undefined}
             onRecapture={handleRecapture}
             onStartOver={handleStartOver}
           />
@@ -132,7 +132,7 @@ export function ErrorScreen(): React.JSX.Element {
           <RateLimitView
             message={error.message}
             retryAfterSeconds={
-              (error.details?.retryAfter as number | undefined) || 60
+              ((error.details as Record<string, unknown> | undefined)?.retryAfter as number | undefined) || 60
             }
             onRetry={handleRetry}
             onStartOver={handleStartOver}
@@ -146,7 +146,7 @@ export function ErrorScreen(): React.JSX.Element {
             errorCode="UNKNOWN"
             message={error.message}
             retryable={canRetry && error.retryable}
-            details={error.details}
+            details={error.details as Record<string, unknown> | undefined}
             onRetry={handleRetry}
             onStartOver={handleStartOver}
           />

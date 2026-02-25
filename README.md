@@ -1,125 +1,220 @@
 # CastSense
 
-A cross-platform mobile app that uses multimodal AI to provide scene-aware fishing cast recommendations.
+A mobile-only AI fishing assistant that provides scene-aware cast recommendations using your own OpenAI API key.
 
 ## Overview
 
-CastSense captures a photo or video of a body of water, gathers environmental context (GPS, weather, time), and uses AI to visually show the best places to cast and how to fish them.
+CastSense captures a photo of a body of water, gathers environmental context (GPS, weather, solar position), and uses AI vision to visually show the best places to cast and how to fish them. All processing happens locally on your device using the OpenAI Vision API.
+
+**Key Features:**
+- 📸 Photo capture with on-device analysis
+- 🔑 BYO (Bring Your Own) OpenAI API key — your key, your privacy
+- 🌍 Real-time enrichment (geocoding, weather, solar calculations)
+- 🎯 Visual cast zones overlaid on your photo
+- 🎣 Tactical fishing recommendations (retrieve speed, cast angle, lure type)
+- 📱 Works offline for capture, online for AI analysis
 
 ## Project Structure
 
 ```
 castsense/
-├── mobile/          # React Native app (iOS + Android)
-├── backend/         # Fastify API service (Node.js + TypeScript)
-├── contracts/       # Shared JSON Schemas and type generation
-└── docs/            # Documentation (PRD, spec, work breakdown)
+├── mobile/          # React Native + Expo app (iOS + Android)
+├── contracts/       # JSON Schemas and type generation
+└── docs/            # Documentation (PRD, spec, acceptance criteria)
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Node.js >= 18 (for mobile development and type generation)
+- Node.js >= 18
 - npm >= 10
-- For mobile: Xcode (iOS) or Android Studio (Android)
+- Expo CLI (installed automatically with `npm install`)
+- For iOS: macOS with Xcode 14+
+- For Android: Android Studio with SDK 33+
+- **OpenAI API key** (get one at [platform.openai.com](https://platform.openai.com))
 
-### Backend Development
+### Setup
 
-The easiest way to get started is with the included Makefile:
-
-```bash
-make help                          # See all available commands
-make up                            # Start backend in Docker
-make logs                          # View service logs
-make backend-test                  # Run backend tests in Docker
-make contracts-generate-types      # Generate TypeScript types from schemas
-```
-
-The backend API will be available at `http://localhost:3000`:
+1. **Clone the repository:**
 
 ```bash
-curl http://localhost:3000/v1/health
+git clone <repo-url>
+cd castsense
 ```
 
-### Mobile Development (Expo)
-
-The mobile app uses Expo for local development:
+2. **Install mobile dependencies:**
 
 ```bash
 cd mobile
-npm install                        # Install dependencies
-npm start                          # Start Expo dev server
-
-# In another terminal:
-npm run ios -- --device           # Run on iOS device/simulator
-npm run android -- --device       # Run on Android device/emulator
+npm install
 ```
 
-The app will auto-detect your computer's LAN IP and connect to the backend running in Docker.
-
-See [mobile/README.md](mobile/README.md) for detailed setup instructions.
-
-To stop the backend:
+3. **Start the development server:**
 
 ```bash
-make down
+npm start
 ```
+
+This launches Expo Dev Tools. From there, you can:
+- Press `i` to open iOS simulator
+- Press `a` to open Android emulator
+- Scan the QR code with Expo Go (iOS) or Camera app (Android) to run on a physical device
+
+4. **Configure your OpenAI API key:**
+
+Once the app launches:
+- Navigate to **Settings** screen
+- Enter your OpenAI API key
+- The key is stored securely on-device using Expo SecureStore
+
+### Running on Devices
+
+**iOS Simulator:**
+```bash
+npm run ios
+```
+
+**Android Emulator:**
+```bash
+npm run android
+```
+
+**Physical Device:**
+- Install **Expo Go** from App Store (iOS) or Play Store (Android)
+- Run `npm start` and scan the QR code
+
+## Development Workflow
 
 ### Type Generation
 
 Generate TypeScript types from JSON Schemas:
 
 ```bash
-make contracts-generate-types
+cd contracts
+npm install
+npm run generate-types
 ```
 
-This outputs types to:
-- `mobile/src/types/contracts.ts`
-- `backend/src/types/contracts.ts`
+This outputs validated types to `mobile/src/types/contracts.ts`.
 
-## API Endpoints
+### Testing
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/health` | Health check |
-| POST | `/v1/analyze` | Analyze photo/video and return cast zones |
+Run the mobile test suite:
+
+```bash
+cd mobile
+npm test                    # Run all tests
+npm test -- --watch        # Watch mode
+npm test -- --coverage     # With coverage report
+```
+
+Tests use Jest with `ts-jest` preset. See [mobile/jest.config.js](mobile/jest.config.js) for configuration.
+
+### Code Quality
+
+```bash
+cd mobile
+npm run lint               # ESLint check
+npm run typecheck          # TypeScript validation
+```
+
+## Tech Stack
+
+**Mobile App:**
+- React Native + Expo SDK 52
+- TypeScript (strict mode)
+- State management: Context API + useReducer (state machine pattern)
+- Navigation: React Navigation 7
+
+**AI & Processing:**
+- OpenAI SDK (gpt-4o-mini vision)
+- Image processing: expo-image-manipulator
+- Schema validation: AJV (JSON Schema Draft 2020-12)
+
+**Enrichment APIs:**
+- Geocoding: Nominatim (OpenStreetMap)
+- Weather: Open-Meteo
+- Solar calculations: suncalc library
+
+**Native Integrations:**
+- Camera: expo-camera
+- Location: expo-location
+- Permissions: Expo APIs
+- Secure storage: expo-secure-store
+
+## Architecture
+
+### Mobile-Only Design
+
+CastSense runs entirely on your device with no backend server:
+
+1. **Capture** → Photo taken with expo-camera
+2. **Process** → Image resized and oriented on-device
+3. **Enrich** → Parallel API calls for geocoding, weather, solar data
+4. **Analyze** → OpenAI Vision API (using your BYO API key)
+5. **Validate** → Strict schema validation with AJV
+6. **Render** → Cast zones overlaid on original photo
+
+### State Machine
+
+The app uses a strict state machine for predictable UI flow (see [mobile/src/state/machine.ts](mobile/src/state/machine.ts)):
+
+```
+Idle → Capturing → Processing → Enriching → Analyzing → Results
+                                                  ↓
+                                               Error → (retry)
+```
+
+All state transitions are validated and type-safe using discriminated union actions.
+
+### Privacy & Security
+
+- **API keys** stored locally using expo-secure-store (encrypted)
+- **No analytics** or tracking
+- **No backend** — your photos never leave your device except for direct OpenAI API calls
+- **No account** required
 
 ## Configuration
 
-See `backend/.env.example` for all available environment variables:
+All configuration happens in the Settings screen:
 
-- `AI_PROVIDER_API_KEY` - AI provider API key (required)
-- `WEATHER_API_KEY` - Weather API key (required)
-- `GEOCODE_API_KEY` - Geocoding API key (required)
-- `MAX_PHOTO_BYTES` - Max photo upload size (default: 8MB)
-- `MAX_VIDEO_BYTES` - Max video upload size (default: 25MB)
+- **OpenAI API Key** (required) — your BYO key for AI analysis
+- **Model selection** — choose between gpt-4o and gpt-4o-mini
+- **Photo quality** — balance between quality and upload size
+
+Future settings:
+- Weather API provider selection
+- Cache duration for enrichment data
+- Debug mode for viewing raw AI responses
+
+## Error Handling
+
+The app categorizes errors for user-friendly messaging (see [mobile/src/services/ai-client.ts](mobile/src/services/ai-client.ts)):
+
+| Error Type | User Message | Retryable |
+|------------|--------------|-----------|
+| `NO_NETWORK` | No internet connection | Yes |
+| `NO_GPS` | Location unavailable | No |
+| `INVALID_MEDIA` | Photo processing failed | No |
+| `AI_TIMEOUT` | Analysis took too long | Yes |
+| `AUTH_FAILED` | Invalid API key | No |
+| `NETWORK_ERROR` | Request failed | Yes |
+| `PARSE_ERROR` | Invalid response | Yes |
 
 ## Documentation
 
 - [Product Requirements (PRD)](docs/PRD.md)
 - [Technical Specification](docs/spec.md)
-- [Work Breakdown](docs/work.md)
+- [Acceptance Criteria](docs/acceptance.md)
+- [Mobile README](mobile/README.md)
 
-## Architecture
+## Contributing
 
-### Provider-First AI
-
-CastSense uses a provider-first approach:
-1. Gather maximum structured context
-2. Send context + media to a multimodal AI provider
-3. Enforce strict output schema validation
-4. Render results as overlay zones
-
-### Data Flow
-
-1. Client captures photo/video + collects GPS/timestamp
-2. Backend receives media + metadata
-3. Backend enriches context (weather, geocode, solar)
-4. Backend invokes AI with media + context pack
-5. Backend validates AI output against schema
-6. Client renders overlay zones on captured image
+1. Create a feature branch
+2. Make changes with tests
+3. Run `npm test` and `npm run typecheck`
+4. Submit PR with clear description
 
 ## License
 

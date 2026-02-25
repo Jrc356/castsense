@@ -1,11 +1,10 @@
 /**
  * CastSense Capture Screen
  * 
- * Full-screen camera interface for capturing photos and videos.
+ * Full-screen camera interface for capturing photos.
  * Features:
- * - Photo capture with preview
- * - Video recording with timer and auto-stop at 10s
- * - Upload progress indication
+ * - Photo capture with local processing
+ * - Analysis progress indication
  * - Error handling
  */
 
@@ -28,29 +27,17 @@ import {
 } from 'react-native-vision-camera';
 
 import {useApp} from '../state/AppContext';
-import {
-  useAppNavigation,
-  useCaptureRoute,
-} from '../navigation/hooks';
-import {
-  capturePhoto,
-  startVideoCapture,
-  stopVideoCapture,
-  formatDuration,
-  getMaxVideoDuration,
-  type CameraRef,
-  type PhotoCapture,
-  type VideoCapture,
-} from '../services/camera';
-import {collectMetadata} from '../services/metadata';
-import {analyzeMedia, type UploadProgress} from '../services/api';
+import {useAppNavigation} from '../navigation/hooks';
+import {capturePhoto, type CameraRef, type PhotoCapture} from '../services/camera';
+import {hasApiKey, getApiKey} from '../services/api-key-storage';
+import {runAnalysis} from '../services/analysis-orchestrator';
+import {getCurrentLocation} from '../services/metadata';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
-const MAX_VIDEO_DURATION_MS = getMaxVideoDuration();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -58,15 +45,12 @@ const MAX_VIDEO_DURATION_MS = getMaxVideoDuration();
 
 export function CaptureScreen(): React.JSX.Element {
   const navigation = useAppNavigation();
-  const route = useCaptureRoute();
-  const {captureType} = route.params;
 
   const {
     state,
-    completeCapture,
-    previewReady,
-    updateUploadProgress,
-    startAnalysis,
+    updateProcessingProgress,
+    updateEnrichmentProgress,
+    updateAIProgress,
     receiveResults,
     handleError,
     reset,
@@ -80,148 +64,116 @@ export function CaptureScreen(): React.JSX.Element {
 
   // Capture state
   const [isCapturing, setIsCapturing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [statusText, setStatusText] = useState('');
-
-  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (recordingTimer.current) {
-        clearInterval(recordingTimer.current);
-      }
-    };
-  }, []);
 
   // Handle photo capture
   const handlePhotoCapture = useCallback(async () => {
     if (!cameraRef.current || isCapturing) return;
 
     try {
-      setIsCapturing(true);
-      setStatusText('Capturing...');
+      // Check for API key before capture
+      const hasKey = await hasApiKey();
+      if (!hasKey) {
+        Alert.alert(
+          'API Key Required',
+          'Please set your OpenAI API key in Settings before capturing.',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {
+              text: 'Go to Settings',
+              onPress: () => navigation.navigate('Settings'),
+            },
+          ]
+        );
+        return;
+      }
 
+      setIsCapturing(true);
+
+      // Capture photo
       const photo = await capturePhoto(cameraRef.current as unknown as CameraRef);
       
-      completeCapture({
-        uri: photo.uri,
-        type: 'photo',
-        width: photo.width,
-        height: photo.height,
-        mimeType: photo.mimeType,
+      // Get location
+      const location = await getCurrentLocation();
+      
+      if (!location) {
+        throw new Error('Unable to get location. Please ensure GPS is enabled.');
+      }
+
+      // Get API key
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        throw new Error('No API key configured');
+      }
+
+      const result = await runAnalysis({
+        photoUri: photo.uri,
+        location,
+        options: {mode: state.mode || 'general'},
+        apiKey,
+        onProgress: (progress) => {
+          if (progress.stage === 'processing') {
+            updateProcessingProgress(progress.progress);
+          } else if (progress.stage === 'enriching') {
+            updateEnrichmentProgress(progress.progress);
+          } else if (progress.stage === 'analyzing') {
+            updateAIProgress(progress.progress);
+          }
+        },
       });
 
-      // Update preview state
-      previewReady(photo.uri, 'photo');
-      
-      // Close modal and return to HomeScreen
-      navigation.goBack();
+      if (result.success && result.data) {
+        receiveResults(result.data);
+        navigation.navigate('Results', {
+          result: result.data,
+          mediaUri: photo.uri,
+        });
+      } else {
+        handleError(result.error || {
+          code: 'UNKNOWN_ERROR',
+          message: 'Analysis failed',
+          retryable: true,
+        });
+        navigation.navigate('Error', {
+          error: result.error || {
+            code: 'UNKNOWN_ERROR',
+            message: 'Analysis failed',
+            retryable: true,
+          },
+          canRetry: true,
+        });
+      }
 
     } catch (error) {
       console.error('Photo capture error:', error);
-      handleError({
+      const appError = {
         code: 'CAPTURE_FAILED',
-        message: 'Failed to capture photo. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to capture photo. Please try again.',
         retryable: true,
-      });
+      };
+      handleError(appError);
       navigation.navigate('Error', {
-        error: {
-          code: 'CAPTURE_FAILED',
-          message: 'Failed to capture photo. Please try again.',
-          retryable: true,
-        },
+        error: appError,
         canRetry: true,
       });
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, completeCapture, previewReady, handleError, navigation]);
-
-  // Handle video recording toggle
-  const handleVideoToggle = useCallback(async () => {
-    if (!cameraRef.current) return;
-
-    if (isRecording) {
-      // Stop recording
-      try {
-        if (recordingTimer.current) {
-          clearInterval(recordingTimer.current);
-          recordingTimer.current = null;
-        }
-        setIsRecording(false);
-        setStatusText('Processing video...');
-        setIsCapturing(true);
-
-        const video = await stopVideoCapture(cameraRef.current as unknown as CameraRef);
-        
-        completeCapture({
-          uri: video.uri,
-          type: 'video',
-          durationMs: video.durationMs,
-          sizeBytes: video.sizeBytes,
-          mimeType: video.mimeType,
-        });
-
-        // Update preview state
-        previewReady(video.uri, 'video');
-        
-        // Close modal and return to HomeScreen
-        navigation.goBack();
-
-      } catch (error) {
-        console.error('Video stop error:', error);
-        setIsCapturing(false);
-        handleError({
-          code: 'CAPTURE_FAILED',
-          message: 'Failed to save video. Please try again.',
-          retryable: true,
-        });
-      }
-    } else {
-      // Start recording
-      try {
-        setIsRecording(true);
-        setRecordingDuration(0);
-
-        await startVideoCapture(cameraRef.current as unknown as CameraRef);
-
-        // Start timer
-        const startTime = Date.now();
-        recordingTimer.current = setInterval(() => {
-          const elapsed = Date.now() - startTime;
-          setRecordingDuration(elapsed);
-
-          // Auto-stop at max duration
-          if (elapsed >= MAX_VIDEO_DURATION_MS) {
-            handleVideoToggle();
-          }
-        }, 100);
-
-      } catch (error) {
-        console.error('Video start error:', error);
-        setIsRecording(false);
-        Alert.alert('Error', 'Failed to start recording. Please try again.');
-      }
-    }
-  }, [isRecording, completeCapture, previewReady, handleError, navigation]);
+  }, [
+    isCapturing,
+    state.mode,
+    navigation,
+    updateProcessingProgress,
+    updateEnrichmentProgress,
+    updateAIProgress,
+    receiveResults,
+    handleError,
+  ]);
 
   // Handle back/cancel
   const handleCancel = useCallback(() => {
-    if (isRecording) {
-      // Stop recording first
-      if (recordingTimer.current) {
-        clearInterval(recordingTimer.current);
-        recordingTimer.current = null;
-      }
-      setIsRecording(false);
-    }
     reset();
     navigation.goBack();
-  }, [isRecording, reset, navigation]);
+  }, [reset, navigation]);
 
   // Handle camera flip
   const handleFlipCamera = useCallback(() => {
@@ -253,6 +205,18 @@ export function CaptureScreen(): React.JSX.Element {
     );
   }
 
+  // Determine processing status
+  const isAnalyzing = state.state === 'Processing' || state.state === 'Enriching' || state.state === 'Analyzing';
+  const progressPercent = 
+    state.state === 'Processing' ? state.processingProgress :
+    state.state === 'Enriching' ? state.enrichmentProgress :
+    state.state === 'Analyzing' ? state.aiProgress : 0;
+  const statusMessage =
+    state.state === 'Processing' ? 'Processing image...' :
+    state.state === 'Enriching' ? 'Gathering context...' :
+    state.state === 'Analyzing' ? 'Analyzing with AI...' :
+    isCapturing ? 'Capturing...' : '';
+
   return (
     <View style={styles.container}>
       {/* Camera Preview */}
@@ -260,33 +224,18 @@ export function CaptureScreen(): React.JSX.Element {
         ref={cameraRef}
         style={styles.camera}
         device={device}
-        isActive={!isProcessing}
-        photo={captureType === 'photo'}
-        video={captureType === 'video'}
-        audio={captureType === 'video'}
+        isActive={!isAnalyzing}
+        photo={true}
       />
 
-      {/* Recording indicator */}
-      {isRecording && (
-        <View style={styles.recordingIndicator}>
-          <View style={styles.recordingDot} />
-          <Text style={styles.recordingTime}>
-            {formatDuration(recordingDuration)}
-          </Text>
-          <Text style={styles.recordingMax}>
-            / {formatDuration(MAX_VIDEO_DURATION_MS)}
-          </Text>
-        </View>
-      )}
-
       {/* Processing overlay */}
-      {isProcessing && (
+      {isAnalyzing && (
         <View style={styles.processingOverlay}>
           <ActivityIndicator size="large" color="#ffffff" />
-          <Text style={styles.processingText}>{statusText}</Text>
-          {uploadProgress > 0 && uploadProgress < 100 && (
+          <Text style={styles.processingText}>{statusMessage}</Text>
+          {progressPercent > 0 && (
             <View style={styles.progressBar}>
-              <View style={[styles.progressFill, {width: `${uploadProgress}%`}]} />
+              <View style={[styles.progressFill, {width: `${progressPercent}%`}]} />
             </View>
           )}
         </View>
@@ -297,7 +246,7 @@ export function CaptureScreen(): React.JSX.Element {
         <TouchableOpacity 
           style={styles.topButton} 
           onPress={handleCancel}
-          disabled={isCapturing}
+          disabled={isCapturing || isAnalyzing}
         >
           <Text style={styles.topButtonText}>Cancel</Text>
         </TouchableOpacity>
@@ -305,51 +254,25 @@ export function CaptureScreen(): React.JSX.Element {
         <TouchableOpacity 
           style={styles.topButton} 
           onPress={handleFlipCamera}
-          disabled={isCapturing || isRecording}
+          disabled={isCapturing || isAnalyzing}
         >
           <Text style={styles.topButtonText}>Flip</Text>
         </TouchableOpacity>
       </SafeAreaView>
 
       {/* Bottom controls */}
-      {!isProcessing && (
+      {!isAnalyzing && (
         <SafeAreaView style={styles.bottomControls} edges={['bottom']}>
-          {/* Capture button */}
-          {captureType === 'photo' ? (
-            <TouchableOpacity
-              style={[styles.captureButton, styles.photoButton]}
-              onPress={handlePhotoCapture}
-              disabled={isCapturing}
-              activeOpacity={0.7}
-            >
-              <View style={styles.captureButtonInner} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[
-                styles.captureButton, 
-                styles.videoButton,
-                isRecording && styles.videoButtonRecording,
-              ]}
-              onPress={handleVideoToggle}
-              disabled={isCapturing}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                styles.captureButtonInner,
-                isRecording && styles.videoButtonInnerRecording,
-              ]} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.captureButton, styles.photoButton]}
+            onPress={handlePhotoCapture}
+            disabled={isCapturing}
+            activeOpacity={0.7}
+          >
+            <View style={styles.captureButtonInner} />
+          </TouchableOpacity>
 
-          {/* Hint text */}
-          <Text style={styles.hintText}>
-            {captureType === 'photo' 
-              ? 'Tap to capture photo'
-              : isRecording 
-                ? 'Tap to stop recording'
-                : 'Tap to start recording'}
-          </Text>
+          <Text style={styles.hintText}>Tap to capture photo</Text>
         </SafeAreaView>
       )}
     </View>
@@ -438,57 +361,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   photoButton: {},
-  videoButton: {
-    borderColor: '#FF3B30',
-  },
-  videoButtonRecording: {
-    borderColor: '#FF3B30',
-  },
   captureButtonInner: {
     width: 64,
     height: 64,
     borderRadius: 32,
     backgroundColor: '#ffffff',
   },
-  videoButtonInnerRecording: {
-    width: 28,
-    height: 28,
-    borderRadius: 4,
-    backgroundColor: '#FF3B30',
-  },
   hintText: {
     color: '#ffffff',
     fontSize: 14,
     opacity: 0.8,
-  },
-  recordingIndicator: {
-    position: 'absolute',
-    top: 100,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  recordingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FF3B30',
-    marginRight: 8,
-  },
-  recordingTime: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  recordingMax: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 14,
-    marginLeft: 4,
   },
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,

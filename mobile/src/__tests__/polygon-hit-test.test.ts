@@ -276,9 +276,9 @@ describe('Polygon Hit Test Tests (T11.3)', () => {
       );
 
       // Should be sorted by priority (1, 2, 3)
-      expect(result[0].zone_id).toBe('Z2'); // priority 1
-      expect(result[1].zone_id).toBe('Z3'); // priority 2
-      expect(result[2].zone_id).toBe('Z1'); // priority 3
+      expect(result[0]?.zone_id).toBe('Z2'); // priority 1
+      expect(result[1]?.zone_id).toBe('Z3'); // priority 2
+      expect(result[2]?.zone_id).toBe('Z1'); // priority 3
     });
 
     test('returns empty array when no zones match', () => {
@@ -424,9 +424,9 @@ describe('Polygon Hit Test Tests (T11.3)', () => {
 
       const all = findAllZonesAtPoint(center, zones, mapper);
       expect(all.length).toBe(3);
-      expect(all[0].zone_id).toBe('Z3');
-      expect(all[1].zone_id).toBe('Z2');
-      expect(all[2].zone_id).toBe('Z1');
+      expect(all[0]?.zone_id).toBe('Z3');
+      expect(all[1]?.zone_id).toBe('Z2');
+      expect(all[2]?.zone_id).toBe('Z1');
     });
 
     test('handles zones with no priority (default)', () => {

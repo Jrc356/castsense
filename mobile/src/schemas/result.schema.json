@@ -1,0 +1,276 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://castsense.app/schemas/result/0.1.0",
+  "title": "CastSense Analysis Result",
+  "description": "Overlay-ready analysis result per spec §9",
+  "type": "object",
+  "required": ["mode", "zones", "tactics"],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["general", "specific"],
+      "description": "Analysis mode used"
+    },
+    "likely_species": {
+      "type": "array",
+      "description": "Likely species with confidence scores",
+      "items": {
+        "type": "object",
+        "required": ["species", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "species": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Species name"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence score (0-1)"
+          }
+        }
+      }
+    },
+    "analysis_frame": {
+      "type": "object",
+      "description": "Reference frame for overlay coordinates",
+      "required": ["type", "width_px", "height_px"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["photo", "video_frame"],
+          "description": "Type of analysis frame"
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Frame width in pixels"
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Frame height in pixels"
+        },
+        "selected_frame_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For video: index of selected keyframe"
+        },
+        "frame_timestamp_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For video: timestamp of frame in milliseconds"
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "description": "Cast zones with overlay data",
+      "minItems": 0,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["zone_id", "label", "confidence", "target_species", "polygon", "cast_arrow"],
+        "additionalProperties": false,
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8,
+            "description": "Unique zone identifier"
+          },
+          "label": {
+            "type": "string",
+            "description": "Zone label (Primary, Secondary, Tertiary, or custom)"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Zone confidence score (0-1)"
+          },
+          "target_species": {
+            "type": "string",
+            "description": "Target species for this zone"
+          },
+          "polygon": {
+            "type": "array",
+            "description": "Zone boundary as array of [x,y] normalized coordinates",
+            "minItems": 3,
+            "items": {
+              "type": "array",
+              "description": "Point as [x, y] normalized coordinate",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "cast_arrow": {
+            "type": "object",
+            "description": "Cast direction arrow",
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "properties": {
+              "start": {
+                "type": "array",
+                "description": "Arrow start point [x, y]",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "end": {
+                "type": "array",
+                "description": "Arrow end point [x, y]",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          },
+          "retrieve_path": {
+            "type": "array",
+            "description": "Optional retrieve path as polyline",
+            "items": {
+              "type": "array",
+              "description": "Point as [x, y] normalized coordinate",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "style": {
+            "type": "object",
+            "description": "Rendering style hints",
+            "additionalProperties": false,
+            "properties": {
+              "priority": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Priority for rendering order (1 = highest)"
+              },
+              "hint": {
+                "type": "string",
+                "enum": ["cover", "structure", "current", "depth_edge", "shade", "inflow", "unknown"],
+                "description": "Type of fishing structure/feature"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tactics": {
+      "type": "array",
+      "description": "Tactics for each zone",
+      "items": {
+        "type": "object",
+        "required": ["zone_id", "recommended_rig", "target_depth", "retrieve_style", "why_this_zone_works"],
+        "additionalProperties": false,
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "description": "Zone this tactic applies to"
+          },
+          "recommended_rig": {
+            "type": "string",
+            "description": "Recommended lure/rig setup"
+          },
+          "alternate_rigs": {
+            "type": "array",
+            "description": "Alternative rig options",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_depth": {
+            "type": "string",
+            "description": "Recommended target depth"
+          },
+          "retrieve_style": {
+            "type": "string",
+            "description": "How to retrieve the lure"
+          },
+          "cadence": {
+            "type": "string",
+            "description": "Retrieve cadence description"
+          },
+          "cast_count_suggestion": {
+            "type": "string",
+            "description": "Suggested number of casts"
+          },
+          "why_this_zone_works": {
+            "type": "array",
+            "description": "Reasons this zone is productive",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "description": "Step-by-step fishing instructions",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "conditions_summary": {
+      "type": "array",
+      "description": "Summary of current conditions",
+      "items": {
+        "type": "string"
+      }
+    },
+    "plan_summary": {
+      "type": "array",
+      "description": "Overall fishing plan summary",
+      "items": {
+        "type": "string"
+      }
+    },
+    "explainability": {
+      "type": "object",
+      "description": "AI reasoning transparency",
+      "additionalProperties": false,
+      "properties": {
+        "scene_observations": {
+          "type": "array",
+          "description": "What the AI observed in the scene",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "description": "Assumptions made during analysis",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

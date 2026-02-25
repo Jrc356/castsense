@@ -75,6 +75,10 @@ export function getHostIpFromExpo(): string | null {
     // hostUri is usually in format: "192.168.1.100:8081" or "192.168.1.100"
     const ip = hostUri.split(':')[0];
     
+    if (!ip) {
+      return null;
+    }
+    
     // Validate it looks like an IP address
     if (isValidIp(ip)) {
       return ip;

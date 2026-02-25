@@ -1,4 +1,4 @@
-# PRD: CastSense (Provider-First AI Fishing Assistant, Cross-Platform)
+# PRD: CastSense (Mobile-Only AI Fishing Assistant)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ## One-Liner
 
-A cross-platform mobile app that captures a photo or video of a body of water, automatically pulls environmental and location context, and uses multimodal AI to visually show the best places to cast and how to fish them.
+A mobile-only app that captures a photo of a body of water, automatically enriches it with environmental and location context, and uses on-device processing with OpenAI's multimodal AI to visually show the best places to cast and how to fish them.
 
 ## Vision
 
@@ -21,11 +21,11 @@ When standing at any shoreline, a user can open the app, point the camera at the
 * How to retrieve
 * What species are most likely (or how to target a chosen species)
 
-The app acts like a personal AI fishing guide.
+The app acts like a personal AI fishing guide, processing everything locally on your device with your own OpenAI API key.
 
 ## Primary Goal
 
-Deliver scene-aware, actionable cast recommendations in under 10–15 seconds from capture.
+Deliver scene-aware, actionable cast recommendations in under 10–15 seconds from capture, with complete privacy (no data sent to our servers).
 
 ## Non-Goals (v1)
 
@@ -34,10 +34,24 @@ Deliver scene-aware, actionable cast recommendations in under 10–15 seconds fr
 * Building a social network
 * Tournaments or competition features
 * Crowdsourced public hotspot maps
+* Backend server infrastructure
+* Video capture and analysis (photo-only)
+* Storing user data on external servers
 
 ---
 
 # 2. Product Principles
+
+## Mobile-First, Privacy-First
+
+CastSense is a **mobile-only application** with no backend server.
+
+Key principles:
+
+* **All processing happens on-device** or via user's own OpenAI API key
+* **No data sent to our servers** - complete user privacy
+* **BYO API Key model** - users provide their own OpenAI API key
+* Users maintain full control of their data and API costs
 
 ## Provider-First AI
 
@@ -45,12 +59,13 @@ CastSense intentionally avoids building a rule-based fishing engine in v1.
 
 Instead:
 
-* Gather maximum structured context
-* Send context + media to a multimodal AI provider
-* Enforce strict output schema
+* Gather maximum structured context on-device
+* Perform local enrichment (weather, solar, geocoding)
+* Send context + media directly to OpenAI via user's API key
+* Enforce strict output schema locally
 * Render the results visually
 
-The AI model handles reasoning and tactical decisions.
+The AI model handles reasoning and tactical decisions, while all data stays under user control.
 
 ## Structured Context > Hardcoded Heuristics
 
@@ -104,26 +119,46 @@ User selects:
 * Largemouth bass
 * Smallmouth bass
 * Trout
-* Walleye
-* etc.
+## First-Time Setup
 
-Behavior:
+1. I download the app
+2. I open Settings
+3. I enter my OpenAI API key
+4. The app validates the key
+5. I'm ready to fish
 
-* AI focuses recommendations exclusively on chosen species
-* Tactics are species-optimized
+## Analysis Flow
 
----
+1. I open the app
+2. I choose General or Specific mode
+3. I snap a photo
+4. The app processes the image locally
+5. It enriches with weather, location, and solar data
+6.Platform toggle (Shore / Kayak / Boat)
+* Button: Open Camera
+* Settings button (top-right corner)
 
-# 5. Core User Stories
+## Settings Screen
 
-1. I open the app.
-2. I choose General or Specific mode.
-3. I snap a photo (or record short video).
-4. The app analyzes the scene.
-5. It overlays cast zones directly on my captured image.
-6. I tap a zone to see lure + retrieve instructions.
-7. I follow the plan.
+* OpenAI API Key management
+  - Input field for API key
+  - Validation status indicator
+  - Help link to OpenAI API key creation
+* App info (version, privacy policy)
+* About section
 
+## Capture Screen
+
+* Live camera preview
+* Photo capture button
+* After capture → automatic analysis
+
+## Processing Screen
+
+Loading indicator with stages:
+
+* Processing image
+* Enriching context (location, weather, solar)
 ---
 
 # 6. UX & Flow
@@ -144,29 +179,9 @@ Behavior:
 
 ## Analysis Screen
 
-Loading indicator:
+LoadiMobile-Only Architecture (React Native)
 
-* Identifying location
-* Pulling weather
-* Analyzing structure
-* Generating cast plan
-
-## Results Screen
-
-* Captured image displayed
-* Overlaid zones + arrows + retrieve paths
-* Bottom sheet with tactics
-* Tabs:
-
-  * Plan
-  * Conditions
-  * Species (General mode)
-
----
-
-# 7. Cross-Platform Architecture (React Native)
-
-## Mobile Client (Cross-Platform)
+## Mobile App (Cross-Platform)
 
 ### Framework
 
@@ -176,26 +191,48 @@ Loading indicator:
   * Android
   * iOS
 
-### Recommended Libraries
+### Core Libraries
 
 * Framework: Expo (managed React Native)
 * Camera: `expo-camera`
 * Location: `expo-location`
 * Permissions: Expo permission APIs (built-in)
-* Video processing: native modules or FFmpeg binding
 * Canvas overlays: `@shopify/react-native-skia`
-* Networking: axios
+* Networking: `axios` (for OpenAI API + enrichment APIs)
+* Storage: `@react-native-async-storage/async-storage` (for API key)
 * Device info: `expo-device`, `expo-constants`
 
-### Responsibilities of Mobile Client
+### Responsibilities of Mobile App
 
-* Camera capture + preview
-* Video trimming (if needed)
-* Extract keyframes for video analysis
-* Collect GPS + timestamp
-* Render overlays using normalized coordinates
-* Display tactics UI
-* Handle retries + loading states
+* **Settings Management**
+  - Store/retrieve OpenAI API key securely
+  - Validate API key format and connectivity
+  - Display usage guidance
+
+* **Image Capture & Processing**
+  - Camera capture (photo-only)
+  - Image processing and optimization
+  - Orientation detection and correction
+
+* **Context Enrichment (On-Device)**
+  - Collect GPS + timestamp
+  - Fetch weather data from public APIs
+  - Calculate solar position (sunrise/sunset)
+  - Reverse geocoding for waterbody identification
+  - Build canonical context pack
+
+* **AI Integration**
+  - Send enriched context + image to OpenAI API
+  - Use user's API key for all requests
+  - Handle streaming responses
+  - Enforce timeout limits
+
+* **Validation & Rendering**
+  - Validate AI output against local schemas
+  - Attempt repair if output malformed
+  - Render overlays using normalized coordinates
+  - Display tactics UI
+  - Handle retries + loading states
 
 ### Overlay Rendering
 
@@ -211,21 +248,30 @@ Client:
   * Retrieve paths
 * Ensures overlays scale correctly across devices
 
----
+### Data Flow (Mobile-Only)
 
+1. **Capture**: User takes photo
+2. **Process**: Image resized/optimized on-device
+3. **Enrich**: Parallel API calls for weather, geocoding, solar
+4. **Analyze**: Send to OpenAI using user's API key
+5. **Validate**: Check output schema locally
+6. **Render**: Display overlays on captured image
+
+**No backend server - all orchestration happens on the mobile device.**
 # 8. Backend Architecture
 
 ## Thin Orchestration Layer
 
 Responsibilities:
+8. Inputs
 
-* Accept media uploads
-* Build context pack
-* Fetch enrichment APIs
-* Call multimodal AI provider
-* Validate schema
-* Retry repair if needed
-* Return final JSON response
+## Required
+
+* Photo (video not supported in v1)
+* GPS location
+* Timestamp
+* Mode (General / Specific)
+* OpenAI API key (stored in settingsse
 
 Backend stack options:
 
@@ -242,22 +288,13 @@ Stateless preferred for v1.
 
 * Photo OR video
 * GPS location
-* Timestamp
-* Mode (General / Specific)
+* 9. Context Enrichment (On-Device)
 
-## Optional
-
-* Species (Specific mode)
-* Shore/Kayak/Boat
-* Gear constraints
-
----
-
-# 10. Context Enrichment
+All enrichment happens on the mobile device via public APIs:
 
 ## Location
 
-* Reverse geocode
+* Reverse geocode (via Nominatim or similar free API)
 * Identify waterbody name
 * Infer water type (lake/river/etc.)
 
@@ -268,11 +305,25 @@ Stateless preferred for v1.
 * Cloud cover
 * Precipitation last 24h
 * Pressure + trend
+* (via Open-Meteo or similar free API)
 
 ## Solar
 
 * Sunrise
 * Sunset
+* Daylight classification
+* (calculated locally using SunCalc or similar)
+
+## Hydrology (Optional, best-effort)
+
+* River flow rate
+* Gauge height
+* (via USGS or similar public API)
+
+## Species Likelihood
+
+* Regional species lookup
+* A0-inferred from context
 * Daylight classification
 
 ## Hydrology (if available)
@@ -321,32 +372,35 @@ Stateless preferred for v1.
   },
   "species_context": {
     "likely_species": ["smallmouth bass", "walleye"]
-  }
-}
-```
+  }1. AI System Design
 
----
+## OpenAI-Based Multimodal Analysis
 
-# 12. AI System Design
+AI responsibilities (via user's OpenAI API key):
 
-## Provider-First Multimodal Analysis
-
-AI responsibilities:
-
-* Interpret scene
+* Interpret scene from photo
 * Detect visible fishing structure
 * Infer cast zones
 * Generate lure + retrieve recommendations
 * Provide explanation grounded in scene + context
 
-## Two-Stage Prompting (Recommended)
+## Two-Stage Prompting (Client-Side)
+
+The mobile app orchestrates two API calls to OpenAI:
 
 ### Stage 1: Perception
 
-Extract structured scene observations.
+* Send: Image + minimal context
+* Receive: Structured scene observations
+* (Helps reduce hallucinated structure)
 
 ### Stage 2: Planning
 
+* Send: Observations + full context pack + mode
+* Receive: Final overlay/tactics JSON schema
+
+All API calls use the user's stored OpenAI API key.age 2: Planning
+2
 Generate zones + tactics using:
 
 * Observations
@@ -388,58 +442,153 @@ AI must return strict JSON.
       ]
     }
   ],
-  "plan_summary": [
-    "Start at Zone A and work parallel to the weed edge."
-  ]
-}
-```
-
----
-
-# 14. Functional Requirements
+  "3. Functional Requirements
 
 * Must support Android and iOS from same codebase
+* Must securely store OpenAI API key on device
 * Must render overlays consistently across device sizes
 * Must complete analysis in < 15 seconds
 * Must retry once if AI output malformed
 * Must handle missing enrichment gracefully
+* Must work with photo capture only (no video)
+* Must validate API key before allowing analysis
+* Must provide clear guidance for obtaining OpenAI API ke
 
----
+# 14. Functional Requirements
 
-# 15. Non-Functional Requirements
+* Must support Android and iOS from same codebase
+* M4. Non-Functional Requirements
 
 ## Performance
 
-* Photo: < 10 seconds
-* Video: < 15 seconds
+* Photo analysis: < 10 seconds (typical)
+* Photo analysis: < 15 seconds (P95)
+* Image processing: < 1 second
+* Enrichment: < 3 seconds total (parallel calls)
+* AI analysis: < 8 seconds (typical)
 
 ## Privacy
 
-* Media deleted after processing by default
-* No public GPS sharing
+* **No data sent to our servers**
+* All processing local or via user's own API key
+* Photos stored temporarily on device, deleted after analysis
+* API key stored in device secure storage (Keychain/Keystore)
+* Location never shared with our servers
+* Complete user data ownership
 
-## Reliability
+## 5. Error Handling
+
+### Error States
+
+* **No API Key**: Prompt user to enter key in Settings
+* **Invalid API Key**: Show validation error with help link
+* **No GPS**: Prompt user to enable location services
+* **No Network**: Show offline message, suggest retry
+* **AI Timeout**: Automatic retry once, then show error
+* **Invalid JSON**: Attempt local repair, fallback to text-only
+* **Enrichment Failures**: Continue with partial data
+* **Rate Limit (OpenAI)**: Show user-friendly message about their API quota
+
+### Fallback Behavior
+
+* Prompt user to enable location
+* Retry AI call once automatically
+* S6. State Machine
+
+The mobile app follows this state machine:
+
+```
+Idle → ModeSelected → Capturing → Processing → Enriching → Analyzing → Results
+                                                                           ↓
+                                                         Error → (retry or Idle)
+```
+
+**States:**
+
+* **Idle**: Home screen, no active session
+* **ModeSelected**: User chose General/Specific mode
+* **Capturing**: Camera active, waiting for photo
+* **Processing**: Image processing and optimization
+* **Enriching**: Fetching weather, location, solar data
+* **Analcapture only (no video)
+* Settings screen with API key management
+* On-device context pack builder
+* Weather/solar/location enrichment
+* Direct OpenAI API integration (user's key)
+* Local schema validation
+* Overlay rendering
+* General + Specific modes
+* Complete privacy (no backend server)
+
+Excluded:
+
+* Backend server infrastructure
+* Video capture and analysis
+* Live AR mode
+* Catch logging
+* Offline inference (requires network for enrichment + AI)
+* Social features
+* Personal model tuning
+* Analytics or telemetry
 
 * Retry repair on invalid JSON
 * Show graceful error states
+ (< 15s)
+* API key setup is straightforward
+* Users understand data privacy model
+* Enrichment succeeds reliably (>95% success rate)
+* LocaPrivacy & Trust Benefits
 
----
+## Why Mobile-Only Matters
 
-# 16. Error Handling
+* **Your Data Stays Yours**: Photos never leave your device except to OpenAI (via your API key)
+* **No Account Required**: No sign-up, no login, no user tracking
+* **API Cost Transparency**: You control and see your OpenAI costs directly
+* **No Server Dependency**: App works as long as OpenAI API is available
+* **Open Architecture**: You can audit exactly where your data goes
 
-### Failures
+## Trust Model
 
-* No GPS
-* No network
-* AI timeout
-* Invalid JSON
+* We don't see your photos
+* We don't see your locations
+* We don't see your fishing spots
+* We don't track your usage
+* We don't store anything on external servers
 
-### Fallback
+**The app is a tool that runs on YOUR device with YOUR API key.**
 
-* Prompt user to enable location
-* Retry AI call once
-* Show simplified text-only plan if rendering fails
+# 21. Future Roadmap
+2. Summary
 
+CastSense is a **mobile-only** React Native app that:
+
+* Captures photos of fishing water (video support in future)
+* Processes images locally on your device
+* Enriches context with weather, solar, and location data
+* Sends structured context + media directly to OpenAI using **your API key**
+* Receives strict JSON output describing cast zones and tactics
+* Validates output locally against schemas
+* Renders actionable overlays directly on the captured scene
+* Supports both General and Specific fishing modes
+
+**Key differentiators:**
+
+* **No backend server** - all orchestration on-device
+* **Complete privacy** - your data never touches our servers
+* **BYO API Key** - you control costs and data
+* **Photo-only v1** - simpler, faster, focused
+* **Local validation** - ensures quality output
+
+It prioritizes **privacy, speed, and user control** while leveraging AI-driven reasoning through a transparent, auditable architecture
+* Continuous analysis while panning camera
+* Alternative AI providers (Anthropic, local models)
+
+## v4
+
+* Waterbody memory (stored locally)
+* Personalized lake intelligence
+* Smarter species probability modeling
+* Local AI models (fully offline)
 ---
 
 # 17. Safety & Disclaimers

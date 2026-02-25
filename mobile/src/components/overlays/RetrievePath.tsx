@@ -56,11 +56,19 @@ function createPolylinePath(points: Point[]): string {
     return '';
   }
 
+  const firstPoint = points[0];
+  if (!firstPoint) {
+    return '';
+  }
+
   const pathParts: string[] = [];
-  pathParts.push(`M ${points[0].x} ${points[0].y}`);
+  pathParts.push(`M ${firstPoint.x} ${firstPoint.y}`);
 
   for (let i = 1; i < points.length; i++) {
-    pathParts.push(`L ${points[i].x} ${points[i].y}`);
+    const point = points[i];
+    if (point) {
+      pathParts.push(`L ${point.x} ${point.y}`);
+    }
   }
 
   return pathParts.join(' ');
@@ -134,9 +142,9 @@ export function RetrievePath({
       </Path>
 
       {/* Optional: End marker (small circle at the end) */}
-      {screenPath.length > 0 && (
+      {screenPath.length > 0 && screenPath[screenPath.length - 1] && (
         <EndMarker
-          point={screenPath[screenPath.length - 1]}
+          point={screenPath[screenPath.length - 1]!}
           color={pathColor}
           radius={isSelected ? 4 : 3}
         />

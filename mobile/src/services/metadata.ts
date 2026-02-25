@@ -380,6 +380,11 @@ export function getSeason(
 
   const season = seasons[month];
   
+  // Ensure season is defined
+  if (!season) {
+    return 'summer'; // Fallback default
+  }
+  
   // Flip for southern hemisphere
   if (!isNorthernHemisphere) {
     const flip: Record<typeof season, typeof season> = {

@@ -19,7 +19,6 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
@@ -28,15 +27,9 @@ import {useAppNavigation} from '../navigation/hooks';
 import {
   requestCapturePermissions,
   requestLocationPermission,
-  requestLibraryPermissions,
 } from '../services/permissions';
-import {pickMediaFromLibrary, type LibraryMediaResult} from '../services/camera';
-import {collectMetadata, extractExifMetadata} from '../services/metadata';
-import {analyzeMedia, type UploadProgress} from '../services/api';
-import {MediaPreviewSection} from '../components/MediaPreviewSection';
 import type {
   AnalysisMode,
-  CaptureType,
   PlatformContext,
   GearType,
 } from '../state/machine';
@@ -106,14 +99,6 @@ export function HomeScreen(): React.JSX.Element {
     setGearType,
     setUserConstraints,
     startCapture,
-    previewReady,
-    completeCapture,
-    acceptPreview,
-    retake,
-    updateUploadProgress,
-    startAnalysis,
-    receiveResults,
-    handleError,
   } = useApp();
 
   // Local form state
@@ -122,10 +107,6 @@ export function HomeScreen(): React.JSX.Element {
   const [platform, setPlatform] = useState<PlatformContext | null>(state.platformContext);
   const [gear, setGear] = useState<GearType>(state.gearType);
   const [notes, setNotes] = useState<string>(state.userConstraints.notes || '');
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
-  // Check if we're in preview state
-  const hasPreview = state.previewMediaUri !== null && state.previewMediaType !== null;
 
   // Handle mode selection
   const handleModeSelect = useCallback((mode: AnalysisMode) => {
@@ -135,8 +116,8 @@ export function HomeScreen(): React.JSX.Element {
     }
   }, []);
 
-  // Start capture flow
-  const handleStartCapture = useCallback(async (captureType: CaptureType) => {
+  // Start camera capture flow
+  const handleStartCapture = useCallback(async () => {
     if (!selectedMode) {
       Alert.alert('Select Mode', 'Please select an analysis mode first.');
       return;
@@ -147,13 +128,13 @@ export function HomeScreen(): React.JSX.Element {
       return;
     }
 
-    // Request permissions
+    // Request camera and location permissions
     const permissions = await requestCapturePermissions();
     
     if (!permissions.camera) {
       Alert.alert(
         'Camera Required',
-        'Camera permission is required to capture photos and videos.',
+        'Camera permission is required to capture photos.',
       );
       return;
     }
@@ -163,7 +144,7 @@ export function HomeScreen(): React.JSX.Element {
       await requestLocationPermission();
     }
 
-    // Update app state
+    // Update app state with selected mode and constraints
     selectMode(selectedMode, selectedMode === 'specific' ? targetSpecies.trim() : undefined);
     
     if (platform) {
@@ -176,11 +157,11 @@ export function HomeScreen(): React.JSX.Element {
       setUserConstraints({ notes: notes.trim() });
     }
 
-    // Start capture
-    startCapture(captureType);
+    // Start camera capture
+    startCapture();
 
-    // Navigate to capture screen
-    navigation.navigate('Capture', { captureType });
+    // Navigate to capture screen for local processing
+    navigation.navigate('Capture');
   }, [
     selectedMode,
     targetSpecies,
@@ -194,181 +175,6 @@ export function HomeScreen(): React.JSX.Element {
     startCapture,
     navigation,
   ]);
-
-  // Handle library selection flow
-  const handleSelectFromLibrary = useCallback(async () => {
-    if (!selectedMode) {
-      Alert.alert('Select Mode', 'Please select an analysis mode first.');
-      return;
-    }
-
-    if (selectedMode === 'specific' && !targetSpecies.trim()) {
-      Alert.alert('Enter Species', 'Please enter a target species for Specific mode.');
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-
-      // Request library and location permissions
-      const permissions = await requestLibraryPermissions();
-      
-      if (!permissions.mediaLibrary) {
-        Alert.alert(
-          'Photo Library Required',
-          'Photo library permission is required to select existing photos and videos.',
-        );
-        setIsProcessing(false);
-        return;
-      }
-
-      // Pick media from library
-      const media = await pickMediaFromLibrary();
-      
-      if (!media) {
-        // User canceled selection
-        setIsProcessing(false);
-        return;
-      }
-
-      // Update app state with mode and constraints
-      selectMode(selectedMode, selectedMode === 'specific' ? targetSpecies.trim() : undefined);
-      
-      if (platform) {
-        setPlatformContext(platform);
-      }
-      
-      setGearType(gear);
-      
-      if (notes.trim()) {
-        setUserConstraints({ notes: notes.trim() });
-      }
-
-      // Start capture state (for preview/analysis flow)
-      startCapture(media.type);
-
-      // Update preview state (stays on HomeScreen)
-      completeCapture({
-        uri: media.uri,
-        type: media.type,
-        mimeType: media.mimeType,
-      });
-      previewReady(media.uri, media.type);
-
-    } catch (error) {
-      console.error('Library selection error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to select media';
-      
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [
-    selectedMode,
-    targetSpecies,
-    platform,
-    gear,
-    notes,
-    selectMode,
-    setPlatformContext,
-    setGearType,
-    setUserConstraints,
-    startCapture,
-    completeCapture,
-    previewReady,
-  ]);
-
-  // Handle Analyze button
-  const handleAnalyze = useCallback(async () => {
-    if (!state.previewMediaUri || !state.previewMediaType) {
-      Alert.alert('Error', 'No media selected');
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-      
-      // Collect metadata
-      const metadata = await collectMetadata({
-        mode: state.mode || 'general',
-        targetSpecies: state.targetSpecies,
-        platformContext: state.platformContext || undefined,
-        gearType: state.gearType,
-        captureType: state.previewMediaType,
-        captureTimestamp: new Date(),
-        userConstraints: state.userConstraints,
-        includeLocation: true,
-      });
-
-      // Determine MIME type based on media type
-      const mimeType = state.previewMediaType === 'photo' ? 'image/jpeg' : 'video/mp4';
-
-      // Upload and analyze
-      const response = await analyzeMedia(
-        { uri: state.previewMediaUri, mimeType },
-        metadata,
-        (progress: UploadProgress) => {
-          updateUploadProgress(progress.percentage);
-        }
-      );
-
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Analysis failed');
-      }
-
-      // Transition to Uploading state
-      acceptPreview();
-
-      startAnalysis();
-
-      // Navigate to results
-      navigation.replace('Results', {
-        result: {
-          request_id: response.data.request_id,
-          status: response.data.status,
-          rendering_mode: response.data.rendering_mode,
-          result: response.data.result,
-          context_pack: response.data.context_pack,
-          timings_ms: response.data.timings_ms,
-          enrichment_status: response.data.enrichment_status,
-        },
-        mediaUri: state.previewMediaUri,
-      });
-
-    } catch (error) {
-      console.error('Upload/analysis error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      
-      handleError({
-        code: 'UPLOAD_FAILED',
-        message: errorMessage,
-        retryable: true,
-      });
-
-      navigation.navigate('Error', {
-        error: {
-          code: 'UPLOAD_FAILED',
-          message: errorMessage,
-          retryable: true,
-        },
-        canRetry: true,
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [
-    state,
-    updateUploadProgress,
-    acceptPreview,
-    startAnalysis,
-    handleError,
-    navigation,
-  ]);
-
-  // Handle Retake button
-  const handleRetake = useCallback(() => {
-    retake();
-  }, [retake]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -469,79 +275,15 @@ export function HomeScreen(): React.JSX.Element {
           />
         </View>
 
-        {/* Media Preview (visible when media selected) */}
-        {hasPreview && state.previewMediaUri && state.previewMediaType && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Preview</Text>
-            <MediaPreviewSection
-              mediaUri={state.previewMediaUri}
-              mediaType={state.previewMediaType}
-            />
-          </View>
-        )}
-
-        {/* Action Buttons */}
+        {/* Capture Button */}
         <View style={styles.captureSection}>
-          {hasPreview ? (
-            <>
-              {/* Analyze and Retake buttons when media selected */}
-              <TouchableOpacity
-                style={[styles.captureButton, styles.libraryButton]}
-                onPress={handleRetake}
-                disabled={isProcessing}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.captureButtonText}>Retake / Choose Different</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.captureButton, styles.photoButton]}
-                onPress={handleAnalyze}
-                disabled={isProcessing}
-                activeOpacity={0.8}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.captureButtonText}>Analyze</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* Capture buttons when no media selected */}
-              <TouchableOpacity
-                style={[styles.captureButton, styles.photoButton]}
-                onPress={() => handleStartCapture('photo')}
-                activeOpacity={0.8}
-                disabled={isProcessing}
-              >
-                <Text style={styles.captureButtonText}>Take Photo</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.captureButton, styles.videoButton]}
-                onPress={() => handleStartCapture('video')}
-                activeOpacity={0.8}
-                disabled={isProcessing}
-              >
-                <Text style={styles.captureButtonText}>Record Video</Text>
-                <Text style={styles.captureButtonSubtext}>5-10 seconds</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.captureButton, styles.libraryButton]}
-                onPress={handleSelectFromLibrary}
-                activeOpacity={0.8}
-                disabled={isProcessing}
-              >
-                <Text style={styles.captureButtonText}>
-                  {isProcessing ? 'Processing...' : 'Select from Library'}
-                </Text>
-                <Text style={styles.captureButtonSubtext}>Choose existing photo or video</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity
+            style={[styles.captureButton, styles.photoButton]}
+            onPress={handleStartCapture}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.captureButtonText}>Take Photo</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -654,20 +396,9 @@ const styles = StyleSheet.create({
   photoButton: {
     backgroundColor: '#007AFF',
   },
-  videoButton: {
-    backgroundColor: '#FF3B30',
-  },
-  libraryButton: {
-    backgroundColor: '#34C759',
-  },
   captureButtonText: {
     fontSize: 17,
     fontWeight: '600',
     color: '#ffffff',
-  },
-  captureButtonSubtext: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
   },
 });

@@ -1,5 +1,5 @@
 /**
- * CastSense App Context
+ * CastSense App Context (Photo-Only, Local Processing)
  * 
  * Provides global state management using React Context + useReducer
  * Wraps the state machine for use throughout the app
@@ -21,7 +21,6 @@ import {
   type MachineState,
   type AppAction,
   type AnalysisMode,
-  type CaptureType,
   type CaptureResult,
   type AnalysisResult,
   type AppError,
@@ -51,14 +50,14 @@ interface AppContextValue {
   setPlatformContext: (platform: PlatformContext | null) => void;
   setGearType: (gearType: GearType) => void;
   setUserConstraints: (constraints: UserConstraints) => void;
-  startCapture: (captureType: CaptureType) => void;
+  startCapture: () => void;
   completeCapture: (result: CaptureResult) => void;
-  previewReady: (mediaUri: string, mediaType: CaptureType) => void;
-  acceptPreview: () => void;
-  retake: () => void;
-  startUpload: () => void;
-  updateUploadProgress: (progress: number) => void;
-  startAnalysis: () => void;
+  startProcessing: () => void;
+  updateProcessingProgress: (progress: number) => void;
+  startEnrichment: () => void;
+  updateEnrichmentProgress: (progress: number) => void;
+  startAIAnalysis: () => void;
+  updateAIProgress: (progress: number) => void;
   receiveResults: (result: AnalysisResult) => void;
   handleError: (error: AppError) => void;
   retry: () => void;
@@ -114,12 +113,9 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     []
   );
 
-  const startCapture = useCallback(
-    (captureType: CaptureType) => {
-      dispatch(actions.startCapture(captureType));
-    },
-    []
-  );
+  const startCapture = useCallback(() => {
+    dispatch(actions.startCapture());
+  }, []);
 
   const completeCapture = useCallback(
     (result: CaptureResult) => {
@@ -128,35 +124,38 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     []
   );
 
-  const previewReady = useCallback(
-    (mediaUri: string, mediaType: CaptureType) => {
-      dispatch(actions.previewReady(mediaUri, mediaType));
-    },
-    []
-  );
-
-  const acceptPreview = useCallback(() => {
-    dispatch(actions.acceptPreview());
+  const startProcessing = useCallback(() => {
+    dispatch(actions.startProcessing());
   }, []);
 
-  const retake = useCallback(() => {
-    dispatch(actions.retake());
-  }, []);
-
-  const startUpload = useCallback(() => {
-    dispatch(actions.startUpload());
-  }, []);
-
-  const updateUploadProgress = useCallback(
+  const updateProcessingProgress = useCallback(
     (progress: number) => {
-      dispatch(actions.updateUploadProgress(progress));
+      dispatch(actions.updateProcessingProgress(progress));
     },
     []
   );
 
-  const startAnalysis = useCallback(() => {
-    dispatch(actions.startAnalysis());
+  const startEnrichment = useCallback(() => {
+    dispatch(actions.startEnrichment());
   }, []);
+
+  const updateEnrichmentProgress = useCallback(
+    (progress: number) => {
+      dispatch(actions.updateEnrichmentProgress(progress));
+    },
+    []
+  );
+
+  const startAIAnalysis = useCallback(() => {
+    dispatch(actions.startAIAnalysis());
+  }, []);
+
+  const updateAIProgress = useCallback(
+    (progress: number) => {
+      dispatch(actions.updateAIProgress(progress));
+    },
+    []
+  );
 
   const receiveResults = useCallback(
     (result: AnalysisResult) => {
@@ -193,12 +192,12 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
-      previewReady,
-      acceptPreview,
-      retake,
-      startUpload,
-      updateUploadProgress,
-      startAnalysis,
+      startProcessing,
+      updateProcessingProgress,
+      startEnrichment,
+      updateEnrichmentProgress,
+      startAIAnalysis,
+      updateAIProgress,
       receiveResults,
       handleError,
       retry,
@@ -213,12 +212,12 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
-      previewReady,
-      acceptPreview,
-      retake,
-      startUpload,
-      updateUploadProgress,
-      startAnalysis,
+      startProcessing,
+      updateProcessingProgress,
+      startEnrichment,
+      updateEnrichmentProgress,
+      startAIAnalysis,
+      updateAIProgress,
       receiveResults,
       handleError,
       retry,
@@ -246,7 +245,6 @@ export type {
   MachineState,
   AppAction,
   AnalysisMode,
-  CaptureType,
   CaptureResult,
   AnalysisResult,
   AppError,

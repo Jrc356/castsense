@@ -2,7 +2,7 @@
  * CastSense Type Generation Script
  * 
  * Generates TypeScript types from JSON Schema definitions and outputs
- * to both mobile and backend projects.
+ * to the mobile project.
  * 
  * Usage: npm run generate-types
  */
@@ -13,7 +13,6 @@ import * as path from 'path';
 
 const CONTRACTS_DIR = path.resolve(__dirname, '..');
 const MOBILE_TYPES_DIR = path.resolve(CONTRACTS_DIR, '../mobile/src/types');
-const BACKEND_TYPES_DIR = path.resolve(CONTRACTS_DIR, '../backend/src/types');
 
 interface SchemaConfig {
   file: string;
@@ -169,26 +168,19 @@ async function main(): Promise<void> {
   console.log('CastSense Type Generation\n');
   console.log('Contracts directory:', CONTRACTS_DIR);
   console.log('Mobile types output:', MOBILE_TYPES_DIR);
-  console.log('Backend types output:', BACKEND_TYPES_DIR);
   console.log('');
 
   try {
     // Generate types
     const types = await generateTypes();
     
-    // Ensure output directories exist
+    // Ensure output directory exists
     await ensureDir(MOBILE_TYPES_DIR);
-    await ensureDir(BACKEND_TYPES_DIR);
     
     // Write to mobile
     const mobileOutput = path.join(MOBILE_TYPES_DIR, 'contracts.ts');
     fs.writeFileSync(mobileOutput, types, 'utf-8');
     console.log(`\nWritten: ${mobileOutput}`);
-    
-    // Write to backend
-    const backendOutput = path.join(BACKEND_TYPES_DIR, 'contracts.ts');
-    fs.writeFileSync(backendOutput, types, 'utf-8');
-    console.log(`Written: ${backendOutput}`);
     
     console.log('\nType generation complete!');
   } catch (err) {

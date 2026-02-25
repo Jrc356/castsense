@@ -4,9 +4,10 @@
  * Main navigation structure using @react-navigation/native-stack
  * Screens:
  * - HomeScreen: Mode selection with integrated preview
- * - CaptureScreen: Photo/video capture
+ * - CaptureScreen: Photo capture
  * - ResultsScreen: Overlay display + tactics
  * - ErrorScreen: Error display with retry
+ * - SettingsScreen: API key configuration
  */
 
 import React from 'react';
@@ -16,6 +17,7 @@ import {HomeScreen} from '../screens/HomeScreen';
 import {CaptureScreen} from '../screens/CaptureScreen';
 import {ResultsScreen} from '../screens/ResultsScreen';
 import {ErrorScreen} from '../screens/ErrorScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import type {RootStackParamList} from './types';
 
 // Re-export types and hooks for convenience
@@ -83,6 +85,16 @@ export function AppNavigator(): React.JSX.Element {
         options={{
           title: 'Error',
           headerBackVisible: true,
+          presentation: 'modal',
+        }}
+      />
+
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          title: 'Settings',
+          headerBackTitle: 'Back',
           presentation: 'modal',
         }}
       />

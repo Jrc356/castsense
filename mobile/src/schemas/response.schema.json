@@ -1,0 +1,211 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://castsense.app/schemas/response/0.1.0",
+  "title": "CastSense Response Envelope",
+  "description": "Response envelope wrapper per spec §7.4",
+  "type": "object",
+  "required": ["request_id", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this request"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded", "error"],
+      "description": "Overall request status"
+    },
+    "rendering_mode": {
+      "type": "string",
+      "enum": ["overlay", "text_only"],
+      "description": "How the client should render results"
+    },
+    "timings_ms": {
+      "type": "object",
+      "description": "Timing breakdown in milliseconds",
+      "additionalProperties": false,
+      "properties": {
+        "upload": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time to receive and process upload"
+        },
+        "enrichment": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time for context enrichment calls"
+        },
+        "ai_perception": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time for AI perception stage"
+        },
+        "ai_planning": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time for AI planning stage"
+        },
+        "validation": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time for output validation"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total request processing time"
+        }
+      }
+    },
+    "enrichment_status": {
+      "type": "object",
+      "description": "Status of each enrichment provider",
+      "additionalProperties": false,
+      "properties": {
+        "reverse_geocode": {
+          "type": "string",
+          "enum": ["ok", "failed", "skipped"],
+          "description": "Reverse geocoding status"
+        },
+        "weather": {
+          "type": "string",
+          "enum": ["ok", "failed", "skipped"],
+          "description": "Weather enrichment status"
+        },
+        "solar": {
+          "type": "string",
+          "enum": ["ok", "failed", "skipped"],
+          "description": "Solar times calculation status"
+        },
+        "hydrology": {
+          "type": "string",
+          "enum": ["ok", "failed", "skipped"],
+          "description": "Hydrology data status"
+        }
+      }
+    },
+    "context_pack": {
+      "type": "object",
+      "description": "Canonical context pack passed to AI and returned for transparency",
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["general", "specific"]
+        },
+        "target_species": {
+          "type": ["string", "null"]
+        },
+        "user_context": {
+          "type": "object",
+          "properties": {
+            "platform": {
+              "type": "string",
+              "enum": ["shore", "kayak", "boat"]
+            },
+            "gear_type": {
+              "type": "string",
+              "enum": ["spinning", "baitcasting", "fly", "unknown"]
+            },
+            "constraints": {
+              "type": "object",
+              "properties": {
+                "lures_available": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "line_test_lb": {
+                  "type": "number"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lon": { "type": "number" },
+            "accuracy_m": { "type": "number" },
+            "waterbody_name": { "type": ["string", "null"] },
+            "water_type": {
+              "type": "string",
+              "enum": ["lake", "river", "pond", "ocean", "unknown"]
+            },
+            "admin_area": { "type": ["string", "null"] },
+            "country": { "type": ["string", "null"] }
+          }
+        },
+        "time": {
+          "type": "object",
+          "properties": {
+            "timestamp_utc": { "type": "string", "format": "date-time" },
+            "local_time": { "type": "string" },
+            "season": {
+              "type": "string",
+              "enum": ["winter", "spring", "summer", "fall"]
+            },
+            "sunrise_local": { "type": "string" },
+            "sunset_local": { "type": "string" },
+            "daylight_phase": {
+              "type": "string",
+              "enum": ["pre_dawn", "sunrise", "day", "golden_hour", "sunset", "after_sunset", "night"]
+            }
+          }
+        },
+        "weather": {
+          "type": "object",
+          "properties": {
+            "air_temp_f": { "type": "number" },
+            "wind_speed_mph": { "type": "number" },
+            "wind_direction_deg": { "type": "number" },
+            "cloud_cover_pct": { "type": "number" },
+            "precip_last_24h_in": { "type": "number" },
+            "pressure_inhg": { "type": "number" },
+            "pressure_trend": {
+              "type": "string",
+              "enum": ["rising", "steady", "falling", "unknown"]
+            }
+          }
+        },
+        "hydrology": {
+          "type": "object",
+          "properties": {
+            "flow_cfs": { "type": "number" },
+            "gauge_height_ft": { "type": "number" },
+            "source": { "type": ["string", "null"] },
+            "observed_at_utc": { "type": ["string", "null"] }
+          }
+        },
+        "species_context": {
+          "type": "object",
+          "properties": {
+            "likely_species": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "species": { "type": "string" },
+                  "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              }
+            },
+            "source": {
+              "type": "string",
+              "enum": ["defaults", "dataset", "ai_inferred"]
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "description": "The analysis result (overlay-ready) - see result.schema.json for full definition"
+    }
+  }
+}

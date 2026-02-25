@@ -42,10 +42,17 @@ export function isPointInPolygon(point: Point, polygon: Point[]): boolean {
 
   // Ray casting algorithm
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x;
-    const yi = polygon[i].y;
-    const xj = polygon[j].x;
-    const yj = polygon[j].y;
+    const pi = polygon[i];
+    const pj = polygon[j];
+    
+    if (!pi || !pj) {
+      continue;
+    }
+    
+    const xi = pi.x;
+    const yi = pi.y;
+    const xj = pj.x;
+    const yj = pj.y;
 
     // Check if edge crosses the ray
     const intersect =
@@ -71,7 +78,14 @@ export function distanceToPolygon(point: Point, polygon: Point[]): number {
 
   for (let i = 0; i < polygon.length; i++) {
     const j = (i + 1) % polygon.length;
-    const distance = distanceToSegment(point, polygon[i], polygon[j]);
+    const pi = polygon[i];
+    const pj = polygon[j];
+    
+    if (!pi || !pj) {
+      continue;
+    }
+    
+    const distance = distanceToSegment(point, pi, pj);
     minDistance = Math.min(minDistance, distance);
   }
 

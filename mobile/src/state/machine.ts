@@ -1,9 +1,9 @@
 /**
- * CastSense State Machine
+ * CastSense State Machine (Photo-Only, Local Processing)
  * 
- * States: Idle → ModeSelected → Capturing → Uploading → Analyzing → Results → Error
+ * States: Idle → ModeSelected → Capturing → Processing → Enriching → Analyzing → Results | Error
  * 
- * Implements the client state machine per spec §5.3
+ * Implements local analysis flow with OpenAI API (BYO-API-key model).
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,14 +14,13 @@ export type AppState =
   | 'Idle'
   | 'ModeSelected'
   | 'Capturing'
-  | 'Preview'
-  | 'Uploading'
+  | 'Processing'
+  | 'Enriching'
   | 'Analyzing'
   | 'Results'
   | 'Error';
 
 export type AnalysisMode = 'general' | 'specific';
-export type CaptureType = 'photo' | 'video';
 export type PlatformContext = 'shore' | 'kayak' | 'boat';
 export type GearType = 'spinning' | 'baitcasting' | 'fly' | 'unknown';
 
@@ -33,29 +32,31 @@ export interface UserConstraints {
 
 export interface CaptureResult {
   uri: string;
-  type: CaptureType;
   width?: number;
   height?: number;
-  durationMs?: number;
   sizeBytes?: number;
   mimeType: string;
 }
 
 export interface AnalysisResult {
-  request_id: string;
-  status: 'ok' | 'degraded' | 'error';
-  rendering_mode?: 'overlay' | 'text_only';
-  result?: unknown;
-  context_pack?: unknown;
-  timings_ms?: Record<string, number>;
-  enrichment_status?: Record<string, string>;
+  result: unknown;
+  enrichment: unknown;
+  validation: unknown;
+  model: string;
+  timings: {
+    processing_ms: number;
+    enrichment_ms: number;
+    ai_ms: number;
+    validation_ms: number;
+    total_ms: number;
+  };
 }
 
 export interface AppError {
   code: string;
   message: string;
   retryable: boolean;
-  details?: Record<string, unknown>;
+  details?: unknown;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,13 +73,8 @@ export interface MachineState {
   gearType: GearType;
   userConstraints: UserConstraints;
   
-  // Capture
-  captureType: CaptureType | null;
+  // Capture (photo only)
   captureResult: CaptureResult | null;
-  
-  // Preview
-  previewMediaUri: string | null;
-  previewMediaType: CaptureType | null;
   
   // Results
   analysisResult: AnalysisResult | null;
@@ -87,7 +83,9 @@ export interface MachineState {
   error: AppError | null;
   
   // Progress tracking
-  uploadProgress: number;
+  processingProgress: number; // 0-1
+  enrichmentProgress: number; // 0-1
+  aiProgress: number; // 0-1
   retryCount: number;
 }
 
@@ -98,13 +96,12 @@ export const initialState: MachineState = {
   platformContext: null,
   gearType: 'unknown',
   userConstraints: {},
-  captureType: null,
   captureResult: null,
-  previewMediaUri: null,
-  previewMediaType: null,
   analysisResult: null,
   error: null,
-  uploadProgress: 0,
+  processingProgress: 0,
+  enrichmentProgress: 0,
+  aiProgress: 0,
   retryCount: 0,
 };
 
@@ -117,14 +114,14 @@ export type AppAction =
   | { type: 'SET_PLATFORM_CONTEXT'; payload: PlatformContext | null }
   | { type: 'SET_GEAR_TYPE'; payload: GearType }
   | { type: 'SET_USER_CONSTRAINTS'; payload: UserConstraints }
-  | { type: 'START_CAPTURE'; payload: CaptureType }
+  | { type: 'START_CAPTURE' }
   | { type: 'COMPLETE_CAPTURE'; payload: CaptureResult }
-  | { type: 'PREVIEW_READY'; payload: { mediaUri: string; mediaType: CaptureType } }
-  | { type: 'ACCEPT_PREVIEW' }
-  | { type: 'RETAKE' }
-  | { type: 'START_UPLOAD' }
-  | { type: 'UPDATE_UPLOAD_PROGRESS'; payload: number }
-  | { type: 'START_ANALYSIS' }
+  | { type: 'START_PROCESSING' }
+  | { type: 'UPDATE_PROCESSING_PROGRESS'; payload: number }
+  | { type: 'START_ENRICHMENT' }
+  | { type: 'UPDATE_ENRICHMENT_PROGRESS'; payload: number }
+  | { type: 'START_AI_ANALYSIS' }
+  | { type: 'UPDATE_AI_PROGRESS'; payload: number }
   | { type: 'RECEIVE_RESULTS'; payload: AnalysisResult }
   | { type: 'HANDLE_ERROR'; payload: AppError }
   | { type: 'RETRY' }
@@ -155,9 +152,8 @@ export const actions = {
     payload: constraints,
   }),
 
-  startCapture: (captureType: CaptureType): AppAction => ({
+  startCapture: (): AppAction => ({
     type: 'START_CAPTURE',
-    payload: captureType,
   }),
 
   completeCapture: (result: CaptureResult): AppAction => ({
@@ -165,30 +161,31 @@ export const actions = {
     payload: result,
   }),
 
-  previewReady: (mediaUri: string, mediaType: CaptureType): AppAction => ({
-    type: 'PREVIEW_READY',
-    payload: { mediaUri, mediaType },
+  startProcessing: (): AppAction => ({
+    type: 'START_PROCESSING',
   }),
 
-  acceptPreview: (): AppAction => ({
-    type: 'ACCEPT_PREVIEW',
-  }),
-
-  retake: (): AppAction => ({
-    type: 'RETAKE',
-  }),
-
-  startUpload: (): AppAction => ({
-    type: 'START_UPLOAD',
-  }),
-
-  updateUploadProgress: (progress: number): AppAction => ({
-    type: 'UPDATE_UPLOAD_PROGRESS',
+  updateProcessingProgress: (progress: number): AppAction => ({
+    type: 'UPDATE_PROCESSING_PROGRESS',
     payload: progress,
   }),
 
-  startAnalysis: (): AppAction => ({
-    type: 'START_ANALYSIS',
+  startEnrichment: (): AppAction => ({
+    type: 'START_ENRICHMENT',
+  }),
+
+  updateEnrichmentProgress: (progress: number): AppAction => ({
+    type: 'UPDATE_ENRICHMENT_PROGRESS',
+    payload: progress,
+  }),
+
+  startAIAnalysis: (): AppAction => ({
+    type: 'START_AI_ANALYSIS',
+  }),
+
+  updateAIProgress: (progress: number): AppAction => ({
+    type: 'UPDATE_AI_PROGRESS',
+    payload: progress,
   }),
 
   receiveResults: (result: AnalysisResult): AppAction => ({
@@ -251,7 +248,6 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       return {
         ...state,
         state: 'Capturing',
-        captureType: action.payload,
         captureResult: null,
         error: null,
       };
@@ -266,71 +262,58 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
         captureResult: action.payload,
       };
 
-    case 'PREVIEW_READY':
-      if (state.state !== 'Capturing') {
-        console.warn('Invalid state transition: PREVIEW_READY from', state.state);
-        return state;
-      }
-      return {
-        ...state,
-        state: 'Preview',
-        previewMediaUri: action.payload.mediaUri,
-        previewMediaType: action.payload.mediaType,
-        error: null,
-      };
-
-    case 'ACCEPT_PREVIEW':
-      if (state.state !== 'Preview') {
-        console.warn('Invalid state transition: ACCEPT_PREVIEW from', state.state);
-        return state;
-      }
-      return {
-        ...state,
-        state: 'Uploading',
-        uploadProgress: 0,
-      };
-
-    case 'RETAKE':
-      if (state.state !== 'Preview') {
-        console.warn('Invalid state transition: RETAKE from', state.state);
-        return state;
-      }
-      return {
-        ...state,
-        state: 'ModeSelected',
-        previewMediaUri: null,
-        previewMediaType: null,
-        captureResult: null,
-        error: null,
-      };
-
-    case 'START_UPLOAD':
+    case 'START_PROCESSING':
       if (!state.captureResult) {
-        console.warn('Cannot start upload without capture result');
+        console.warn('Cannot start processing without capture result');
         return state;
       }
       return {
         ...state,
-        state: 'Uploading',
-        uploadProgress: 0,
+        state: 'Processing',
+        processingProgress: 0,
         error: null,
       };
 
-    case 'UPDATE_UPLOAD_PROGRESS':
+    case 'UPDATE_PROCESSING_PROGRESS':
       return {
         ...state,
-        uploadProgress: action.payload,
+        processingProgress: action.payload,
       };
 
-    case 'START_ANALYSIS':
-      if (state.state !== 'Uploading') {
-        console.warn('Invalid state transition: START_ANALYSIS from', state.state);
+    case 'START_ENRICHMENT':
+      if (state.state !== 'Processing') {
+        console.warn('Invalid state transition: START_ENRICHMENT from', state.state);
+        return state;
+      }
+      return {
+        ...state,
+        state: 'Enriching',
+        processingProgress: 1,
+        enrichmentProgress: 0,
+      };
+
+    case 'UPDATE_ENRICHMENT_PROGRESS':
+      return {
+        ...state,
+        enrichmentProgress: action.payload,
+      };
+
+    case 'START_AI_ANALYSIS':
+      if (state.state !== 'Enriching') {
+        console.warn('Invalid state transition: START_AI_ANALYSIS from', state.state);
         return state;
       }
       return {
         ...state,
         state: 'Analyzing',
-        uploadProgress: 100,
+        enrichmentProgress: 1,
+        aiProgress: 0,
+      };
+
+    case 'UPDATE_AI_PROGRESS':
+      return {
+        ...state,
+        aiProgress: action.payload,
       };
 
     case 'RECEIVE_RESULTS':
@@ -338,6 +321,7 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
         ...state,
         state: 'Results',
         analysisResult: action.payload,
+        aiProgress: 1,
         error: null,
         retryCount: 0,
       };
@@ -350,36 +334,29 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       };
 
     case 'RETRY':
-      // Go back to appropriate state based on where we can retry from
-      if (state.state === 'Preview') {
-        // From preview, retry means go back to uploading
+      // Retry from error state - go back to processing if we have a capture
+      if (state.state === 'Error' && state.captureResult && state.error?.retryable) {
         return {
           ...state,
-          state: 'Uploading',
+          state: 'Processing',
           error: null,
           retryCount: state.retryCount + 1,
-          uploadProgress: 0,
+          processingProgress: 0,
+          enrichmentProgress: 0,
+          aiProgress: 0,
         };
       }
-      if (state.captureResult && state.retryCount < 1) {
-        return {
-          ...state,
-          state: 'Uploading',
-          error: null,
-          retryCount: state.retryCount + 1,
-          uploadProgress: 0,
-        };
-      }
-      // If we can't retry, go back to mode selection
+      // Otherwise, go back to mode selection
       return {
         ...state,
         state: state.mode ? 'ModeSelected' : 'Idle',
         error: null,
         captureResult: null,
-        previewMediaUri: null,
-        previewMediaType: null,
         analysisResult: null,
         retryCount: 0,
+        processingProgress: 0,
+        enrichmentProgress: 0,
+        aiProgress: 0,
       };
 
     case 'RESET':
@@ -402,7 +379,7 @@ export function canRetry(state: MachineState): boolean {
   return (
     state.state === 'Error' &&
     state.error?.retryable === true &&
-    state.retryCount < 1
+    state.retryCount < 3
   );
 }
 
@@ -411,15 +388,15 @@ export function getStateProgress(state: MachineState): number {
     case 'Idle':
       return 0;
     case 'ModeSelected':
-      return 10;
+      return 5;
     case 'Capturing':
-      return 20;
-    case 'Preview':
-      return 25;
-    case 'Uploading':
-      return 25 + (state.uploadProgress * 0.4);
+      return 10;
+    case 'Processing':
+      return 15 + (state.processingProgress * 10);
+    case 'Enriching':
+      return 25 + (state.enrichmentProgress * 20);
     case 'Analyzing':
-      return 70;
+      return 45 + (state.aiProgress * 50);
     case 'Results':
       return 100;
     case 'Error':

@@ -237,14 +237,14 @@ describe('Coordinate Mapping Tests (T11.3)', () => {
       
       expect(screenPolygon).toHaveLength(4);
       // Use toBeCloseTo for small floating point differences due to aspect ratio rounding
-      expect(screenPolygon[0].x).toBeCloseTo(0, 0);
-      expect(screenPolygon[0].y).toBeCloseTo(0, 0);
-      expect(screenPolygon[1].x).toBeCloseTo(displaySize.width, 0);
-      expect(screenPolygon[1].y).toBeCloseTo(0, 0);
-      expect(screenPolygon[2].x).toBeCloseTo(displaySize.width, 0);
-      expect(screenPolygon[2].y).toBeCloseTo(displaySize.height, 0);
-      expect(screenPolygon[3].x).toBeCloseTo(0, 0);
-      expect(screenPolygon[3].y).toBeCloseTo(displaySize.height, 0);
+      expect(screenPolygon[0]?.x).toBeCloseTo(0, 0);
+      expect(screenPolygon[0]?.y).toBeCloseTo(0, 0);
+      expect(screenPolygon[1]?.x).toBeCloseTo(displaySize.width, 0);
+      expect(screenPolygon[1]?.y).toBeCloseTo(0, 0);
+      expect(screenPolygon[2]?.x).toBeCloseTo(displaySize.width, 0);
+      expect(screenPolygon[2]?.y).toBeCloseTo(displaySize.height, 0);
+      expect(screenPolygon[3]?.x).toBeCloseTo(0, 0);
+      expect(screenPolygon[3]?.y).toBeCloseTo(displaySize.height, 0);
     });
   });
 

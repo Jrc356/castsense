@@ -92,7 +92,7 @@ export function ResultsScreen(): React.JSX.Element {
   
   // Selected zone
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(
-    zones.length > 0 ? zones[0].zone_id : null
+    zones.length > 0 && zones[0] ? zones[0].zone_id : null
   );
 
   // Tactics panel expanded state
@@ -129,7 +129,7 @@ export function ResultsScreen(): React.JSX.Element {
 
   // Update selected zone when zones change
   useEffect(() => {
-    if (zones.length > 0 && !selectedZoneId) {
+    if (zones.length > 0 && zones[0] && !selectedZoneId) {
       setSelectedZoneId(zones[0].zone_id);
     }
   }, [zones, selectedZoneId]);
@@ -161,11 +161,11 @@ export function ResultsScreen(): React.JSX.Element {
     navigation.goBack();
   }, [retry, navigation]);
 
-  // Check if text-only mode
-  const isTextOnly = result.rendering_mode === 'text_only' || zones.length === 0;
+  // Check if text-only mode (always use overlay if we have zones)
+  const isTextOnly = zones.length === 0;
 
-  // Check if degraded or error status that allows retry
-  const canRetry = result.status === 'degraded' || result.status === 'error';
+  // Always allow retry functionality
+  const canRetry = true;
 
   // If text-only mode, show the text-only results component
   if (isTextOnly && analysisResult) {
@@ -185,13 +185,10 @@ export function ResultsScreen(): React.JSX.Element {
           <View style={styles.statusContainer}>
             <View style={[
               styles.statusBadge,
-              result.status === 'ok' && styles.statusOk,
-              result.status === 'degraded' && styles.statusDegraded,
-              result.status === 'error' && styles.statusError,
+              styles.statusOk,
             ]}>
               <Text style={styles.statusText}>
-                {result.status === 'ok' ? 'Analysis Complete' :
-                 result.status === 'degraded' ? 'Partial Analysis' : 'Limited Analysis'}
+                Analysis Complete
               </Text>
             </View>
           </View>
@@ -263,13 +260,10 @@ export function ResultsScreen(): React.JSX.Element {
         <View style={styles.statusContainer}>
           <View style={[
             styles.statusBadge,
-            result.status === 'ok' && styles.statusOk,
-            result.status === 'degraded' && styles.statusDegraded,
-            result.status === 'error' && styles.statusError,
+            styles.statusOk,
           ]}>
             <Text style={styles.statusText}>
-              {result.status === 'ok' ? 'Analysis Complete' :
-               result.status === 'degraded' ? 'Partial Analysis' : 'Limited Analysis'}
+              Analysis Complete
             </Text>
           </View>
         </View>

@@ -1,24 +1,29 @@
-# CastSense Technical Specification (Engineering Handoff)
+# CastSense Technical Specification (Mobile-Only Architecture)
 
 ## 1. Purpose and Scope
 
-This document defines the technical architecture, key technical decisions, system contracts (schemas + APIs), non-functional requirements, security/privacy controls, observability, and implementation notes for **CastSense v1**: a cross-platform (React Native) provider-first multimodal fishing assistant that generates cast-zone overlays and tactics from a photo or short video plus enriched environmental context.
+This document defines the technical architecture, key technical decisions, system contracts (schemas), non-functional requirements, security/privacy controls, observability, and implementation notes for **CastSense v1**: a **mobile-only** React Native app that generates cast-zone overlays and tactics from a photo plus enriched environmental context using the user's OpenAI API key.
 
 **In-scope (v1)**
 
-* React Native app (iOS + Android) for capture, upload, and overlay rendering
-* Backend orchestration service for enrichment + AI calls + validation/repair
-* Photo + video support (5–10s)
+* React Native app (iOS + Android) for capture, processing, and overlay rendering
+* On-device image processing and optimization
+* Photo-only support (no video)
+* On-device context enrichment (weather, solar, geocoding)
+* Direct OpenAI API integration using user's API key
 * General + Specific modes
 * Strict, render-ready JSON output (normalized coordinates)
-* Best-effort enrichment (weather, reverse geocode, solar; optional hydrology)
+* Local schema validation and repair
+* Settings screen for API key management
 
 **Out-of-scope (v1)**
 
+* Backend server infrastructure
+* Video capture and analysis
 * Live AR mode (continuous camera inference)
 * Social features or public hotspot maps
-* Guarantees of fish presence
-* Offline inference
+* Offline inference (requires network for enrichment + AI)
+* Analytics or telemetry servers
 
 ---
 
@@ -80,38 +85,50 @@ This document defines the technical architecture, key technical decisions, syste
 ### 3.1 Mobile Technology
 
 * **Framework**: Expo (managed React Native workflow for iOS + Android)
-* **Camera**: `expo-camera`
-* **Overlays**: `@shopify/react-native-skia`
-* **Networking**: `axios`
+* **Camera**: `expo-camera` (photo capture only)
+* **Overlays**: `@shopify/react-native-skia` (high-performance canvas rendering)
+* **Networking**: `axios` (HTTP client for API calls)
 * **Location**: `expo-location` (precise GPS)
+* **Storage**: `@react-native-async-storage/async-storage` (API key storage)
+* **Secure Storage**: `expo-secure-store` (encrypted API key storage)
 * **Device Info**: `expo-device`, `expo-constants`, `expo-localization`
-* **Video processing**: v1 prefers backend keyframe extraction; optional client-side downscale/transcode where needed
+* **Image Processing**: `expo-image-manipulator` (resize, optimize, orientation)
+* **Solar Calculations**: `suncalc` or similar library (local computation)
 
 Rationale:
 
-* Expo provides streamlined development workflow with over-the-air updates and simplified native module integration
-* High-performance capture, consistent rendering, minimal client complexity in v1 (video handled server-side)
-* Auto-detection of backend URL for local development (localhost for simulator, LAN IP for physical devices)
+* Expo provides streamlined development with OTA updates
+* All processing happens on-device - no backend complexity
+* Secure storage ensures API key protection
+* Image processing on-device reduces network payload
+* Local solar calculations eliminate API dependency
+* No video processing complexity in v1
 
-### 3.2 Backend Technology
+### 3.2 Architecture Decision: No Backend
 
-* **Service**: Stateless HTTP API (recommended: FastAPI or Node Fastify)
-* **Concurrency**: async fan-out for enrichment calls + AI invocation
-* **Temporary Media Storage**:
+**Why mobile-only?**
 
-  * Preferred: object storage with TTL lifecycle (S3/GCS) OR ephemeral disk for single-instance dev
-  * Media deletion after processing by default; TTL as safety net
-* **Validation**: JSON Schema + additional geometric validations
-* **AI**:
+* **Privacy**: User data never leaves device except to trusted external APIs (OpenAI, weather)
+* **Simplicity**: No server infrastructure to maintain, scale, or secure
+* **Cost**: No hosting costs; users pay only for their OpenAI usage
+* **Transparency**: Users can audit exactly where data goes
+* **Control**: Users manage their own API keys and costs
 
-  * Use structured outputs / schema-constrained generation where supported
-  * Two-stage prompting (Perception → Planning) recommended for quality and debuggability
+**Trade-offs accepted:**
+
+* Requires device network connectivity
+* Client must handle enrichment orchestration
+* Limited caching (device-local only)
+* User responsible for API key management
 
 ### 3.3 Key Constraints
 
-* Normalized coordinate system: all zones/arrows/paths use `[0..1]` coordinates relative to an explicit reference image size
-* Latency target: complete analysis in < 10s (photo) and < 15s (video), typical conditions
+* Normalized coordinate system: all zones/arrows/paths use `[0..1]` coordinates
+* Latency target: complete analysis in < 15s (photo), typical conditions
 * Single repair attempt if output is malformed, then fallback to text-only plan
+* Photo-only (no video support in v1)
+* Network required for enrichment and AI analysis
+* OpenAI API key required for core functionality
 
 ---
 
@@ -151,22 +168,100 @@ Rationale:
 
 ---
 
-## 5. Client Specification
+## 5. Mobile App Specification
 
-### 5.1 Capture
+### 5.1 Settings & API Key Management
 
-**Photo**
+**Settings Screen**
 
-* Capture with max dimension cap (recommended long edge 1280–1920px) before upload
-* Format: JPEG preferred (HEIC allowed if backend supports)
+* Input field for OpenAI API key
+* Validation:
+  - Format check (starts with `sk-`)
+  - Connectivity test (simple API call to verify key works)
+  - Visual feedback (✓ valid, ✗ invalid)
+* Secure storage using `expo-secure-store`
+* Help link to OpenAI API key documentation
+* App version and privacy policy links
 
-**Video**
+**API Key Validation**
 
-* Duration: 5–10 seconds
-* Resolution cap: 720p recommended
-* Bitrate cap recommended; enforce maximum upload size (see §7.3)
+```typescript
+async function validateApiKey(key: string): Promise<boolean> {
+  if (!key.startsWith('sk-')) return false;
+  try {
+    // Test with minimal API call
+    const response = await axios.get('https://api.openai.com/v1/models', {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+    return response.status === 200;
+  } catch {
+    return false;
+  }
+}
+```
 
-### 5.2 Coordinate Mapping and Rendering
+### 5.2 Image Capture & Processing
+
+**Photo Capture**
+
+* Use `expo-camera` for capture
+* Single tap capture (no video)
+* Orientation detection and correction using EXIF
+* Preview before processing
+
+**On-Device Processing**
+
+* Resize to max dimension 1920px (long edge) if larger
+* Optimize JPEG quality (85%)
+* Fix orientation using `expo-image-manipulator`
+* Convert HEIC to JPEG if needed (iOS)
+* Output format: base64 or file URI for OpenAI API
+
+### 5.3 Context Enrichment (On-Device Orchestration)
+
+**Parallel Enrichment**
+
+Client orchestrates parallel API calls with individual timeouts:
+
+```typescript
+const enrichmentResults = await Promise.allSettled([
+  fetchWeather(lat, lon),        // 2s timeout
+  reverseGeocode(lat, lon),      // 2s timeout
+  calculateSolar(lat, lon, timestamp), // synchronous, <100ms
+  fetchHydrology(lat, lon)       // 2s timeout, optional
+]);
+```
+
+**Enrichment Modules**
+
+1. **Weather** (Open-Meteo API - free, no key required)
+   - Air temp, wind speed/direction
+   - Cloud cover, precipitation
+   - Pressure and trend if available
+   
+2. **Reverse Geocoding** (Nominatim - free, no key required)
+   - Waterbody name
+   - Admin area, country
+   - Water type inference (lake/river/pond)
+
+3. **Solar** (SunCalc library - local computation)
+   - Sunrise/sunset times
+   - Daylight phase classification
+   - Solar position
+
+4. **Hydrology** (USGS API - optional, best-effort)
+   - River flow rate
+   - Gauge height
+   - Only for identified river locations
+
+**Error Handling**
+
+* Each enrichment module returns `{ status: 'ok' | 'failed', data?: any }`
+* Failures do not block overall flow
+* Partial context pack is acceptable
+* Status shown in UI (e.g., "Weather data unavailable")
+
+### 5.4 Coordinate Mapping and Rendering
 
 **Coordinate contract**
 
@@ -192,199 +287,127 @@ Rationale:
   * Hit testing polygon → select zone
   * Bottom sheet updates tactics based on zone
 
-### 5.3 Client State Machine
+### 5.5 Client State Machine
 
-* `Idle`
-* `ModeSelected`
-* `Capturing`
-* `Uploading`
-* `Analyzing`
-* `Results`
-* `Error`
+* `Idle` - Home screen
+* `ModeSelected` - User chose General/Specific
+* `Capturing` - Camera active
+* `Processing` - Image processing on-device
+* `Enriching` - Fetching weather/location/solar
+* `Analyzing` - Sending to OpenAI, waiting for response
+* `Results` - Displaying overlays and tactics
+* `Error` - Failure state with retry option
+
+**Transitions:**
+
+* `Idle` → `ModeSelected` (user selects mode)
+* `ModeSelected` → `Capturing` (open camera)
+* `Capturing` → `Processing` (photo taken)
+* `Processing` → `Enriching` (image ready)
+* `Enriching` → `Analyzing` (context ready)
+* `Analyzing` → `Results` (AI response valid)
+* `Analyzing` → `Error` (AI timeout, invalid response, network error)
+* `Error` → `Processing` (retry)
+* `Error` → `Idle` (cancel)
+* `Results` → `ModeSelected` (new analysis)
 
 Error states:
 
-* No GPS permission → prompt + allow manual retry
-* No network → show retry
-* Server error / timeout → retry once; show text-only fallback if provided
+* **No API Key** → redirect to Settings
+* **No GPS permission** → prompt + allow manual retry
+* **No network** → show retry
+* **AI error / timeout** → retry once; show text-only fallback if provided
+* **Invalid output** → attempt repair once; fallback to text-only
 
----
+### 5.6 AI Integration (OpenAI API)
 
-## 6. Backend Specification
+**Two-Stage Orchestration**
 
-### 6.1 Service Responsibilities
+Stage 1: Perception
+```typescript
+const perceptionResponse = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [
+    {
+      role: "system",
+      content: "Extract structured observations from this fishing scene."
+    },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Analyze this water for fishing structure." },
+        { type: "image_url", image_url: { url: imageDataURL } }
+      ]
+    }
+  ],
+  response_format: { type: "json_object" }
+});
+```
 
-* Accept media + metadata payload
-* Generate canonical context pack (merge client inputs + enrichment)
-* Extract keyframes for video
-* Invoke AI provider with strict schema requirements
-* Validate and optionally repair output
-* Return final JSON suitable for immediate rendering
-* Enforce media deletion policy
+Stage 2: Planning
+```typescript
+const planningResponse = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [
+    {
+      role: "system",
+      content: "Generate fishing plan with overlay coordinates."
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        observations: perceptionResponse.content,
+        context: contextPack,
+        mode: "general",
+        // ... full context
+      })
+    }
+  ],
+  response_format: { type: "json_object" }
+});
+```
 
-### 6.2 Enrichment Strategy
+**Timeout Handling**
 
-**Parallel fan-out** with time budgets per provider (soft timeouts). Each enrichment module returns either data or an error object; overall request continues.
+* Set axios timeout: 12s default
+* Retry once on timeout
+* Show user-friendly error if both fail
 
-Recommended enrichment modules (v1):
+### 5.7 Local Validation
 
-* Reverse geocode: waterbody name/place hint
-* Weather: wind, temp, cloud cover, precipitation, pressure/trend (if available)
-* Solar: sunrise/sunset, daylight phase (compute locally)
-  Optional (best-effort):
-* Hydrology: gauge height/flow rate if near river/known gauge
+**Schema Validation**
 
-### 6.3 Two-Stage AI Orchestration (Recommended)
+* Use JSON Schema (via `ajv` or similar)
+* Validate against `result.schema.json` (local copy)
+* Check coordinate bounds `[0, 1]`
+* Verify polygon geometry (≥3 points)
+* Check referential integrity (zone_id consistency)
 
-**Stage 1: Perception**
+**Repair Strategy**
 
-* Inputs: image(s), minimal context
-* Outputs: structured observations about visible structure/features and constraints
+If validation fails:
+1. Construct detailed error message
+2. Send repair request to OpenAI with errors
+3. Validate repaired output
+4. If still invalid: fallback to text-only mode
 
-**Stage 2: Planning**
-
-* Inputs: observations + full context pack + mode/target species
-* Outputs: final overlay/tactics JSON schema
-
-Benefits:
-
-* Reduced hallucinated structure
-* Debuggable intermediate artifacts
-* Easier prompt iteration
-
-### 6.4 Validation and Repair
-
-**Validation layers**
-
-1. JSON Schema validation (required fields, types)
-2. Numeric bounds checks (all coords must be in `[0,1]`)
-3. Geometry checks:
-
-   * polygon has ≥ 3 points
-   * optional: non-self-intersection best-effort
-4. Referential integrity:
-
-   * each `tactics[].zone_id` exists in `zones`
-5. Confidence sanity:
-
-   * `0..1` for confidence fields
-6. Output length constraints:
-
-   * limit zones to 1–3 in v1 unless configured otherwise
-
-**Repair policy**
-
-* One repair attempt:
-
-  * Provide exact validation errors to AI
-  * Request minimal edits to satisfy schema
-* If still invalid:
-
-  * Return `rendering_mode = "text_only"` with `plan_summary` and `tactics` sans geometry
-
----
-
-## 7. API Specification
-
-### 7.1 Endpoint Summary
-
-* `POST /v1/analyze` — Upload media + metadata; receive analyzed plan (overlay JSON)
-* `GET /v1/health` — Health check
-
-### 7.2 `POST /v1/analyze` Request
-
-**Content-Type**: `multipart/form-data`
-
-**Form fields**
-
-* `media`: file (required)
-* `metadata`: JSON string (required)
-
-**`metadata` schema (Client → Backend)**
-
-```json
-{
-  "client": {
-    "platform": "ios|android",
-    "app_version": "string",
-    "device_model": "string",
-    "locale": "string",
-    "timezone": "string"
-  },
-  "request": {
-    "mode": "general|specific",
-    "target_species": "string|null",
-    "platform_context": "shore|kayak|boat",
-    "gear_type": "spinning|baitcasting|fly|unknown",
-    "capture_type": "photo|video",
-    "capture_timestamp_utc": "2026-02-17T22:14:05Z"
-  },
-  "location": {
-    "lat": 0.0,
-    "lon": 0.0,
-    "accuracy_m": 15,
-    "altitude_m": 250,
-    "heading_deg": 123,
-    "speed_mps": 0.0
-  },
-  "user_constraints": {
-    "lures_available": ["string"],
-    "line_test_lb": 10,
-    "notes": "string"
+```typescript
+if (!validate(aiOutput)) {
+  const repaired = await repairOutput(aiOutput, validate.errors);
+  if (!validate(repaired)) {
+    return { rendering_mode: 'text_only', plan_summary: [...] };
   }
+  return repaired;
 }
 ```
-
-Notes:
-
-* `location.*` fields are optional except `lat/lon` (required when permissions granted)
-* Backend must handle missing location by returning actionable error prompting client to request location
-
-### 7.3 Request Limits
-
-* Max photo size: 8 MB (configurable)
-* Max video size: 25 MB (configurable)
-* Max processing time: 20s hard timeout (configurable)
-* Enrichment provider soft timeout: 2s each (configurable)
-
-### 7.4 `POST /v1/analyze` Response
-
-**Content-Type**: `application/json`
-
-**Response envelope**
-
-```json
-{
-  "request_id": "string",
-  "status": "ok|degraded|error",
-  "rendering_mode": "overlay|text_only",
-  "timings_ms": {
-    "upload": 0,
-    "enrichment": 0,
-    "ai_perception": 0,
-    "ai_planning": 0,
-    "validation": 0,
-    "total": 0
-  },
-  "enrichment_status": {
-    "reverse_geocode": "ok|failed|skipped",
-    "weather": "ok|failed|skipped",
-    "solar": "ok|failed|skipped",
-    "hydrology": "ok|failed|skipped"
-  },
-  "context_pack": { },
-  "result": { }
-}
-```
-
-* `status="degraded"` means partial enrichment or fallback was used
-* `rendering_mode="text_only"` indicates geometry absent or invalid; client shows textual plan
 
 ---
 
-## 8. Canonical Context Pack (Backend-Owned)
+## 6. Data Contracts
 
-The backend produces a canonical context pack passed to AI and returned for UI transparency.
+### 6.1 Canonical Context Pack (Mobile-Generated)
+
+The mobile app produces a canonical context pack for AI analysis:
 
 ```json
 {
@@ -442,9 +465,9 @@ The backend produces a canonical context pack passed to AI and returned for UI t
 
 ---
 
-## 9. AI Output Schema (Overlay-Ready)
+## 7. AI Output Schema (Overlay-Ready)
 
-### 9.1 Final Result (`result`) Schema
+### 7.1 Final Result Schema
 
 ```json
 {
@@ -453,11 +476,9 @@ The backend produces a canonical context pack passed to AI and returned for UI t
     { "species": "string", "confidence": 0.0 }
   ],
   "analysis_frame": {
-    "type": "photo|video_frame",
+    "type": "photo",
     "width_px": 1920,
-    "height_px": 1080,
-    "selected_frame_index": 0,
-    "frame_timestamp_ms": 0
+    "height_px": 1080
   },
   "zones": [
     {
@@ -500,16 +521,16 @@ The backend produces a canonical context pack passed to AI and returned for UI t
 }
 ```
 
-### 9.2 Constraints
+### 7.2 Constraints
 
-* `zones.length`: 1–3 (configurable)
+* `zones.length`: 1–3 (recommended)
 * `polygon`: must contain ≥ 3 points; each point `[x,y]` within `[0,1]`
 * `cast_arrow.start/end`: within `[0,1]`
 * `retrieve_path`: optional; if present, each point within `[0,1]`
 * `confidence` fields: `0..1`
 * `tactics[].zone_id` must match an entry in `zones[].zone_id`
 
-### 9.3 Text-only Fallback Result
+### 7.3 Text-only Fallback Result
 
 If overlays cannot be produced reliably:
 
@@ -536,194 +557,189 @@ If overlays cannot be produced reliably:
 
 ---
 
-## 10. Error Handling Contracts
+## 8. Error Handling
 
-### 10.1 Standard Error Response
+### 8.1 Error Categories (Mobile UI)
 
-```json
-{
-  "request_id": "string",
-  "status": "error",
-  "error": {
-    "code": "NO_GPS|NO_NETWORK|INVALID_MEDIA|AI_TIMEOUT|ENRICHMENT_FAILED|UNKNOWN",
-    "message": "string",
-    "retryable": true,
-    "details": { }
-  }
-}
-```
+Mobile app categorizes errors for appropriate UI handling:
 
-### 10.2 Retry Guidance
+| Code | Meaning | Retryable | User Action |
+|------|---------|-----------|-------------|
+| `NO_API_KEY` | Missing OpenAI API key | No | Go to Settings |
+| `INVALID_API_KEY` | API key validation failed | No | Check key in Settings |
+| `NO_NETWORK` | No internet connection | Yes | Retry when online |
+| `NO_GPS` | Location unavailable | No | Enable location services |
+| `AI_TIMEOUT` | OpenAI request timeout | Yes | Retry analysis |
+| `AI_ERROR` | OpenAI API error | Varies | Show error message |
+| `INVALID_OUTPUT` | Schema validation failed | Yes | Auto-retry with repair |
+| `ENRICHMENT_FAILED` | All enrichment failed | Yes | Proceed with minimal context |
 
-* Client retries once automatically for:
+### 8.2 Error State UI
 
-  * `AI_TIMEOUT` (retryable)
-  * transient `ENRICHMENT_FAILED` (retryable)
-* Client does not auto-retry for:
-
-  * `NO_GPS`, `INVALID_MEDIA`
-* Server-side repair occurs independently of client retry
+* Display appropriate error component (see `mobile/src/components/errors/`)
+* Show actionable buttons (Retry, Go to Settings, Cancel)
+* Provide helpful context (e.g., "Check your internet connection")
+* Log errors locally for debugging (no external transmission)
 
 ---
 
-## 11. Observability and Logging
+### 9.1 Local Timing Metrics
 
-### 11.1 Metrics (minimum)
+The mobile app tracks performance locally (not sent to external servers unless user opts in):
 
-* Request count by status (`ok|degraded|error`)
-* Latency: P50/P95/P99 total and per stage (`enrichment`, `ai_perception`, `ai_planning`, `validation`)
-* Enrichment success rates per provider
-* AI invalid output rate + repair success rate
-* Average payload sizes (photo/video), average keyframes extracted
-* Error codes distribution
+* Image processing time
+* Enrichment time (per provider + total)
+* AI perception time
+* AI planning time
+* Validation time
+* Total analysis time
 
-### 11.2 Structured Logs (sanitized)
+Displayed in developer mode or exported for debugging.
 
-Log one record per request:
+### 9.2 Error Logging
 
-* `request_id`
-* timestamps + timings
-* app version + platform
-* mode + capture_type
-* enrichment provider statuses
-* AI model identifier and response size (no raw media)
-* validation failures (types, not raw content)
-* location handling:
+* Errors logged locally on device
+* Stack traces captured for debugging
+* No automatic external transmission
+* Optional export for bug reports (user-initiated)
 
-  * default: do not log raw lat/lon
-  * if enabled: log coarse lat/lon (rounded) only
+###  9.3 Success Metrics
 
-### 11.3 Tracing
-
-Add trace spans for:
-
-* upload parse
-* enrichment fan-out calls
-* keyframe extraction
-* AI calls
-* validation/repair
+* Enrichment success rates (weather, geocoding, solar, hydrology)
+* AI output validation rate (valid vs invalid vs repaired)
+* User retry frequency
+* State transitions and timing
 
 ---
 
-## 12. Security and Privacy Controls
+## 10. AI Prompting Requirements
 
-### 12.1 Authentication
-
-* v1: `Authorization: Bearer <API_KEY>`
-* Keys are environment-configured; rotate periodically
-
-### 12.2 Rate Limiting
-
-* Per API key:
-
-  * Requests/minute cap
-  * Concurrent request cap
-* Reject with 429 + retry-after
-
-### 12.3 Media Handling
-
-* Accept only approved MIME types:
-
-  * Photos: `image/jpeg`, `image/heic` (optional), `image/png` (optional)
-  * Video: `video/mp4`, `video/quicktime` (optional)
-* Virus/malware scanning optional for v1; recommended if opening to external users
-* Storage:
-
-  * Write media to ephemeral path or object store with strict TTL
-  * Delete on completion (success/error) best-effort; TTL cleanup as backstop
-
----
-
-## 13. Video Processing Specification (Backend)
-
-### 13.1 Keyframe Extraction
-
-* Extract N frames (default 3):
-
-  * at 20%, 50%, 80% of duration
-* Save frames as JPEG at controlled size (e.g., 1280px long edge)
-* Provide `analysis_frame.selected_frame_index` and `frame_timestamp_ms` in output
-
-### 13.2 AI Input Strategy
-
-* Provide frames as:
-
-  * multiple images with ordering, OR
-  * a stitched contact sheet (single image)
-* Planning must refer overlays to the chosen `analysis_frame`
-
----
-
-## 14. AI Prompting Requirements (Contractual)
-
-### 14.1 Output Must Be JSON Only
+### 10.1 Output Must Be JSON Only
 
 * No prose surrounding JSON
-* Must conform to schema and constraints
+* Must conform to result schema
+* Use OpenAI's `response_format: { type: "json_object" }`
 
-### 14.2 Mode Behavior
+### 10.2 Mode Behavior
 
 * **General**: include `likely_species` array with confidences; zones may target top species
 * **Specific**: focus tactics on `target_species`; `likely_species` may still include but must not override targeting
 
-### 14.3 Safety / Disclaimers
+### 10.3 Safety / Disclaimers
 
-* `conditions_summary` or `plan_summary` should include safety notes when relevant (e.g., slippery banks, high wind)
-* Do not provide guidance that violates local fishing regulations; optionally remind user to check rules
-
----
-
-## 15. Deployment and Environment
-
-### 15.1 Configuration (Environment Variables)
-
-* `AI_PROVIDER_API_KEY`
-* `WEATHER_API_KEY`
-* `GEOCODE_API_KEY`
-* `OBJECT_STORE_BUCKET` (optional)
-* `MEDIA_TTL_SECONDS` (default 3600)
-* `MAX_PHOTO_BYTES`, `MAX_VIDEO_BYTES`
-* `ENRICHMENT_TIMEOUT_MS`
-* `AI_TIMEOUT_MS_PHOTO`, `AI_TIMEOUT_MS_VIDEO`
-* `RATE_LIMIT_RPM`, `RATE_LIMIT_CONCURRENCY`
-* `LOG_LOCATION_ENABLED` (default false)
-
-### 15.2 Release Strategy
-
-* Phase 1: photo-only, one-stage AI
-* Phase 2: add video keyframes
-* Phase 3: enable two-stage prompting and repair metrics
-* Phase 4: optional hydrology/waterbody improvements
+* `conditions_summary` or `plan_summary` should include safety notes when relevant (e.g., slippery banks, high wind, ice conditions)
+* Remind users to check local fishing regulations
+* Do not guarantee fish presence
 
 ---
 
-## 16. Engineering Checklist (Build Acceptance Criteria)
+## 11. Mobile App Configuration
 
-**Client**
+### 1.1 Required Configuration
 
-* Capture photo and video (5–10s)
-* Upload request conforms to metadata schema
-* Overlay rendering correct across aspect ratios (contain/cover tested)
-* Tap zone selects correct tactics
-* Error UX for GPS/network/server errors
-* Handles `text_only` responses
+**User-Provided:**
+* OpenAI API key (stored in `expo-secure-store`)
 
-**Backend**
+**App Constants:**
+* Default enrichment timeouts (2s per service)
+* Default AI timeout (12s)
+* Max image dimension (1920px)
+* JPEG quality (85%)
+* Max zones displayed (3)
 
-* `/v1/analyze` accepts and validates inputs + size limits
-* Enrichment runs in parallel with timeouts; produces canonical context pack
-* Video keyframe extraction reliable and bounded in time
-* AI invocation returns schema-constrained JSON
-* Validation + single repair attempt implemented
-* Media deletion policy enforced
-* Observability: metrics + structured logs + trace spans
-* Rate limits + authentication enforced
+**Optional Configuration (future):**
+* Preferred AI model
+* Enable/disable specific enrichment services
+* Debug mode toggle
+
+### 11.2 No Environment Variables
+
+Unlike backend applications, no environment variables needed. All configuration either:
+* Provided by user (API key)
+* Hardcoded as app constants
+* Stored in app preferences (future)
 
 ---
 
-## 17. Appendix: JSON Schema Snippets (Authoritative Contracts)
+## 12. Testing Strategy
 
-### 17.1 Zone Object (JSON Schema fragment)
+### 12.1 Unit Tests (Mobile)
+
+* Coordinate mapping logic
+* Polygon hit testing
+* Schema validation
+* Error categorization
+* State machine transitions
+
+See: `mobile/src/__tests__/`
+
+### 12.2 Integration Tests
+
+* Camera capture flow (mocked)
+* Enrichment orchestration (mocked APIs)
+* OpenAI API integration (mocked responses)
+* End-to-end analysis flow
+
+### 12.3 Manual QA
+
+* Real device testing (iOS & Android)
+* Various camera orientations
+* Network failure scenarios
+* GPS enabled/disabled
+* Invalid API key handling
+* Different aspect ratios
+
+---
+
+## 13. Engineering Checklist (Mobile-Only)
+
+**Core Functionality**
+
+* ✅ Photo capture (camera permissions, orientation handling)
+* ✅ Settings screen with API key management
+* ✅ API key validation (format + connectivity test)
+* ✅ Secure storage of API key
+* ✅ Image processing (resize, optimize, orientation correction)
+* ✅ Context enrichment (weather, geocoding, solar)
+* ✅ OpenAI API integration (two-stage prompting)
+* ✅ Local schema validation
+* ✅ Overlay rendering (normalized coordinates)
+* ✅ Error handling with appropriate UI
+* ✅ State machine implementation
+
+**Quality Assurance**
+
+* ✅ Unit tests for coordinate mapping
+* ✅ Unit tests for polygon hit testing
+* ✅ Schema validation tests
+* ✅ Error handling tests
+* ✅ State machine tests
+* ✅ Manual testing on iOS
+* ✅ Manual testing on Android
+* ✅ Cross-device aspect ratio testing
+* ✅ Network failure scenario testing
+* ✅ GPS permission testing
+
+**Performance**
+
+* ✅ Analysis completes < 15s (P95)
+* ✅ Image processing < 1s
+* ✅ Enrichment < 3s total
+* ✅ UI remains responsive during processing
+
+**Privacy & Security**
+
+* ✅ API key encrypted at rest
+* ✅ No data sent to CastSense servers
+* ✅ TLS for all external API calls
+* ✅ Temporary media cleanup
+* ✅ No telemetry without opt-in
+
+---
+
+## 14. Appendix: JSON Schema Snippets
+
+### 14.1 Zone Object (JSON Schema fragment)
 
 ```json
 {
@@ -775,7 +791,7 @@ Add trace spans for:
 }
 ```
 
-### 17.2 Tactics Object (JSON Schema fragment)
+### 14.2 Tactics Object (JSON Schema fragment)
 
 ```json
 {
@@ -794,3 +810,32 @@ Add trace spans for:
   }
 }
 ```
+
+---
+
+## 15. Summary
+
+CastSense v1 is a **mobile-only React Native application** that:
+
+* Captures photos on-device (no video in v1)
+* Processes images locally (resize, optimize, orientation)
+* Enriches context via public APIs (weather, geocoding, solar)
+* Analyzes using OpenAI API (user's own API key)
+* Validates output locally against JSON schemas
+* Renders overlays directly on captured images
+* Maintains complete user privacy (no CastSense backend)
+
+**Key architectural decisions:**
+
+* **No backend server** - eliminates infrastructure, maximizes privacy
+* **BYO API Key** - users control costs and data
+* **Photo-only** - simplifies v1, faster iteration
+* **Local validation** - ensures quality without server dependency
+* **Direct external APIs** - uses free/user-provided services (Open-Meteo, Nominatim, OpenAI)
+
+**Privacy guarantee:** Photos and location data never sent to CastSense servers. Only sent to:
+- OpenAI (via user's API key)
+- Public weather APIs (Open-Meteo)
+- Public geocoding APIs (Nominatim)
+
+This architecture prioritizes user privacy, development velocity, and operational simplicity while delivering AI-powered fishing recommendations.
