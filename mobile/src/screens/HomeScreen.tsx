@@ -10,7 +10,7 @@
  * - Trigger analysis
  */
 
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useLayoutEffect} from 'react';
 import {
   View,
   Text,
@@ -107,6 +107,21 @@ export function HomeScreen(): React.JSX.Element {
   const [platform, setPlatform] = useState<PlatformContext | null>(state.platformContext);
   const [gear, setGear] = useState<GearType>(state.gearType);
   const [notes, setNotes] = useState<string>(state.userConstraints.notes || '');
+
+  // Configure header with settings button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Settings')}
+          activeOpacity={0.7}
+          style={styles.headerButton}
+        >
+          <Text style={styles.headerButtonText}>⚙️</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   // Handle mode selection
   const handleModeSelect = useCallback((mode: AnalysisMode) => {
@@ -400,5 +415,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  headerButton: {
+    marginRight: 16,
+    padding: 8,
+  },
+  headerButtonText: {
+    fontSize: 24,
   },
 });
