@@ -122,6 +122,7 @@ mobile-ios:
 	@echo "Running on iOS (device or simulator)..."
 	cd mobile && npm run ios
 
+EXPO_PUBLIC_API_URL="http://10.0.2.2:3000" # Android emulator's loopback address to host machine
 mobile-android:
 	@echo "Running on Android (device or emulator)..."
 	cd mobile && npm run android

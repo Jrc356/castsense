@@ -25,10 +25,6 @@ export function useCaptureRoute() {
   return useRoute<RouteProp<RootStackParamList, 'Capture'>>();
 }
 
-export function usePreviewRoute() {
-  return useRoute<RouteProp<RootStackParamList, 'Preview'>>();
-}
-
 export function useResultsRoute() {
   return useRoute<RouteProp<RootStackParamList, 'Results'>>();
 }

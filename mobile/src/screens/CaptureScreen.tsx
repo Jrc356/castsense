@@ -115,12 +115,11 @@ export function CaptureScreen(): React.JSX.Element {
         mimeType: photo.mimeType,
       });
 
-      // Navigate to preview
+      // Update preview state
       previewReady(photo.uri, 'photo');
-      navigation.navigate('Preview', {
-        mediaUri: photo.uri,
-        mediaType: 'photo',
-      });
+      
+      // Close modal and return to HomeScreen
+      navigation.goBack();
 
     } catch (error) {
       console.error('Photo capture error:', error);
@@ -167,12 +166,11 @@ export function CaptureScreen(): React.JSX.Element {
           mimeType: video.mimeType,
         });
 
-        // Navigate to preview
+        // Update preview state
         previewReady(video.uri, 'video');
-        navigation.navigate('Preview', {
-          mediaUri: video.uri,
-          mediaType: 'video',
-        });
+        
+        // Close modal and return to HomeScreen
+        navigation.goBack();
 
       } catch (error) {
         console.error('Video stop error:', error);

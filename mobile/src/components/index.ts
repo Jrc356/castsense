@@ -20,3 +20,4 @@ export {
 // Panels and UI
 export { TacticsPanel, CompactTacticsPanel, type TacticsPanelProps } from './TacticsPanel';
 export { TextOnlyResults, type TextOnlyResultsProps } from './TextOnlyResults';
+export { MediaPreviewSection, type MediaPreviewSectionProps } from './MediaPreviewSection';

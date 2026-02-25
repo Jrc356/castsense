@@ -11,10 +11,6 @@ export type RootStackParamList = {
   Capture: {
     captureType: CaptureType;
   };
-  Preview: {
-    mediaUri: string;
-    mediaType: CaptureType;
-  };
   Results: {
     result: AnalysisResult;
     mediaUri: string;
