@@ -5,7 +5,6 @@
  * Runs all enrichments in parallel with 2s timeout per task.
  */
 
-import axios, { AxiosError } from 'axios';
 import SunCalc from 'suncalc';
 
 const ENRICHMENT_TIMEOUT_MS = 2000;
@@ -131,15 +130,26 @@ async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeR
   try {
     const url = `${NOMINATIM_URL}?lat=${lat}&lon=${lon}&format=json&addressdetails=1&extratags=1&zoom=14`;
     
-    const response = await axios.get<NominatimResponse>(url, {
-      timeout: ENRICHMENT_TIMEOUT_MS,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ENRICHMENT_TIMEOUT_MS);
+    
+    const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'User-Agent': 'CastSense/1.0 (https://castsense.app)',
         'Accept': 'application/json'
-      }
+      },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn('[Enrichment] Nominatim API error:', response.status);
+      return null;
+    }
 
-    const data = response.data;
+    const data: NominatimResponse = await response.json();
 
     if (!data || !data.address) {
       return {
@@ -244,12 +254,23 @@ async function fetchWeather(lat: number, lon: number): Promise<WeatherResult | n
   try {
     const url = `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,surface_pressure,precipitation&hourly=precipitation,surface_pressure&past_days=1&forecast_days=1&timezone=auto`;
     
-    const response = await axios.get<OpenMeteoResponse>(url, {
-      timeout: ENRICHMENT_TIMEOUT_MS,
-      headers: { 'Accept': 'application/json' }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ENRICHMENT_TIMEOUT_MS);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn('[Enrichment] Open-Meteo API error:', response.status);
+      return null;
+    }
 
-    const data = response.data;
+    const data: OpenMeteoResponse = await response.json();
 
     if (!data.current) {
       console.warn('[Enrichment] No current weather data');
