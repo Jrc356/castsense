@@ -28,8 +28,7 @@ import {
   requestLibraryPermissions,
 } from '../services/permissions';
 import {pickMediaFromLibrary, type LibraryMediaResult} from '../services/camera';
-import {collectMetadata, extractExifMetadata, getCurrentLocation} from '../services/metadata';
-import {analyzeMedia, type UploadProgress} from '../services/api';
+import {collectMetadata, extractExifMetadata} from '../services/metadata';
 import type {
   AnalysisMode,
   CaptureType,
@@ -102,6 +101,7 @@ export function HomeScreen(): React.JSX.Element {
     setGearType,
     setUserConstraints,
     startCapture,
+    previewReady,
   } = useApp();
 
   // Local form state
@@ -193,6 +193,8 @@ export function HomeScreen(): React.JSX.Element {
     }
 
     try {
+      setIsProcessing(true);
+
       // Request library and location permissions
       const permissions = await requestLibraryPermissions();
       
@@ -201,6 +203,7 @@ export function HomeScreen(): React.JSX.Element {
           'Photo Library Required',
           'Photo library permission is required to select existing photos and videos.',
         );
+        setIsProcessing(false);
         return;
       }
 
@@ -209,6 +212,7 @@ export function HomeScreen(): React.JSX.Element {
       
       if (!media) {
         // User canceled selection
+        setIsProcessing(false);
         return;
       }
 
@@ -225,72 +229,22 @@ export function HomeScreen(): React.JSX.Element {
         setUserConstraints({ notes: notes.trim() });
       }
 
-      // Start capture state (for upload/analysis flow)
+      // Start capture state (for preview/analysis flow)
       startCapture(media.type);
 
-      // Handle EXIF data: let user choose between original or current location/time
-      let useExifData = false;
-      if (media.exif && (media.exif.location || media.exif.timestamp)) {
-        useExifData = await showExifChoiceDialog(media.exif);
-      }
-
-      // Collect metadata
-      let captureTimestamp = new Date();
-      let includeLocation = true;
-      
-      if (useExifData && media.exif) {
-        const exifMetadata = extractExifMetadata(media.exif);
-        
-        // Use EXIF timestamp if available
-        if (exifMetadata.timestamp) {
-          captureTimestamp = exifMetadata.timestamp;
-        }
-        
-        // Collect metadata with EXIF location instead of current location
-        const metadata = await collectMetadata({
-          mode: selectedMode,
-          targetSpecies: selectedMode === 'specific' ? targetSpecies.trim() : undefined,
-          platformContext: platform || undefined,
-          gearType: gear,
-          captureType: media.type,
-          captureTimestamp,
-          userConstraints: notes.trim() ? { notes: notes.trim() } : undefined,
-          includeLocation: false, // We'll add EXIF location manually
-        });
-
-        // Add EXIF location to metadata
-        if (exifMetadata.location) {
-          metadata.location = {
-            lat: exifMetadata.location.lat,
-            lon: exifMetadata.location.lon,
-            altitude_m: exifMetadata.location.altitude_m,
-          };
-        }
-
-        // Upload and analyze
-        await uploadAndAnalyze(media.uri, media.mimeType, metadata);
-      } else {
-        // Use current location and timestamp
-        const metadata = await collectMetadata({
-          mode: selectedMode,
-          targetSpecies: selectedMode === 'specific' ? targetSpecies.trim() : undefined,
-          platformContext: platform || undefined,
-          gearType: gear,
-          captureType: media.type,
-          captureTimestamp,
-          userConstraints: notes.trim() ? { notes: notes.trim() } : undefined,
-          includeLocation: true,
-        });
-
-        // Upload and analyze
-        await uploadAndAnalyze(media.uri, media.mimeType, metadata);
-      }
+      // Navigate to preview
+      previewReady(media.uri, media.type);
+      navigation.navigate('Preview', {
+        mediaUri: media.uri,
+        mediaType: media.type,
+      });
 
     } catch (error) {
       console.error('Library selection error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to select media';
       
       Alert.alert('Error', errorMessage);
+    } finally {
       setIsProcessing(false);
     }
   }, [
@@ -304,93 +258,9 @@ export function HomeScreen(): React.JSX.Element {
     setGearType,
     setUserConstraints,
     startCapture,
+    previewReady,
+    navigation,
   ]);
-
-  // Show EXIF location/timestamp choice dialog
-  const showExifChoiceDialog = (exif: NonNullable<LibraryMediaResult['exif']>): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const locationText = exif.location
-        ? `${exif.location.latitude.toFixed(4)}, ${exif.location.longitude.toFixed(4)}`
-        : 'Not available';
-      
-      const timestampText = exif.timestamp
-        ? exif.timestamp.toLocaleDateString() + ' at ' + exif.timestamp.toLocaleTimeString()
-        : 'Not available';
-      
-      const message = `This photo contains embedded location and time data:\n\nOriginal: ${locationText}\n${timestampText}\n\nWould you like to use this original data, or use your current location and time?`;
-
-      Alert.alert(
-        'Use Original Location & Time?',
-        message,
-        [
-          {
-            text: 'Use Current',
-            onPress: () => resolve(false),
-            style: 'cancel',
-          },
-          {
-            text: 'Use Original',
-            onPress: () => resolve(true),
-          },
-        ],
-        { cancelable: false }
-      );
-    });
-  };
-
-  // Upload and analyze media
-  const uploadAndAnalyze = useCallback(async (
-    uri: string,
-    mimeType: string,
-    metadata: any
-  ) => {
-    try {
-      setIsProcessing(true);
-
-      // Upload and analyze
-      const response = await analyzeMedia(
-        { uri, mimeType },
-        metadata,
-        (progress: UploadProgress) => {
-          // Progress tracking could be added here
-          console.log('Upload progress:', progress.percentage);
-        }
-      );
-
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Analysis failed');
-      }
-
-      // Navigate to results
-      navigation.navigate('Results', {
-        result: {
-          request_id: response.data.request_id,
-          status: response.data.status,
-          rendering_mode: response.data.rendering_mode,
-          result: response.data.result,
-          context_pack: response.data.context_pack,
-          timings_ms: response.data.timings_ms,
-          enrichment_status: response.data.enrichment_status,
-        },
-        mediaUri: uri,
-      });
-
-    } catch (error) {
-      console.error('Upload/analysis error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      
-      navigation.navigate('Error', {
-        error: {
-          code: 'UPLOAD_FAILED',
-          message: errorMessage,
-          retryable: true,
-        },
-        canRetry: true,
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

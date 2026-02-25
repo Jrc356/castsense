@@ -64,7 +64,7 @@ export function CaptureScreen(): React.JSX.Element {
   const {
     state,
     completeCapture,
-    startUpload,
+    previewReady,
     updateUploadProgress,
     startAnalysis,
     receiveResults,
@@ -115,8 +115,12 @@ export function CaptureScreen(): React.JSX.Element {
         mimeType: photo.mimeType,
       });
 
-      // Start upload
-      await handleUpload(photo.uri, 'image/jpeg');
+      // Navigate to preview
+      previewReady(photo.uri, 'photo');
+      navigation.navigate('Preview', {
+        mediaUri: photo.uri,
+        mediaType: 'photo',
+      });
 
     } catch (error) {
       console.error('Photo capture error:', error);
@@ -136,7 +140,7 @@ export function CaptureScreen(): React.JSX.Element {
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, completeCapture, handleError, navigation]);
+  }, [isCapturing, completeCapture, previewReady, handleError, navigation]);
 
   // Handle video recording toggle
   const handleVideoToggle = useCallback(async () => {
@@ -163,8 +167,12 @@ export function CaptureScreen(): React.JSX.Element {
           mimeType: video.mimeType,
         });
 
-        // Start upload
-        await handleUpload(video.uri, 'video/mp4');
+        // Navigate to preview
+        previewReady(video.uri, 'video');
+        navigation.navigate('Preview', {
+          mediaUri: video.uri,
+          mediaType: 'video',
+        });
 
       } catch (error) {
         console.error('Video stop error:', error);
@@ -201,106 +209,7 @@ export function CaptureScreen(): React.JSX.Element {
         Alert.alert('Error', 'Failed to start recording. Please try again.');
       }
     }
-  }, [isRecording, completeCapture, handleError]);
-
-  // Handle upload and analysis
-  const handleUpload = useCallback(async (uri: string, mimeType: string) => {
-    try {
-      setIsProcessing(true);
-      startUpload();
-      setStatusText('Uploading...');
-
-      // Collect metadata
-      const metadata = await collectMetadata({
-        mode: state.mode || 'general',
-        targetSpecies: state.targetSpecies,
-        platformContext: state.platformContext || undefined,
-        gearType: state.gearType,
-        captureType: state.captureType || 'photo',
-        captureTimestamp: new Date(),
-        userConstraints: state.userConstraints,
-        includeLocation: true,
-      });
-
-      // Upload and analyze
-      const response = await analyzeMedia(
-        {
-          uri,
-          mimeType,
-        },
-        metadata,
-        (progress: UploadProgress) => {
-          setUploadProgress(progress.percentage);
-          updateUploadProgress(progress.percentage);
-          if (progress.percentage < 100) {
-            setStatusText(`Uploading... ${progress.percentage}%`);
-          }
-        }
-      );
-
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Analysis failed');
-      }
-
-      startAnalysis();
-      setStatusText('Analyzing...');
-
-      // Analysis is already complete (backend does it synchronously)
-      receiveResults({
-        request_id: response.data.request_id,
-        status: response.data.status,
-        rendering_mode: response.data.rendering_mode,
-        result: response.data.result,
-        context_pack: response.data.context_pack,
-        timings_ms: response.data.timings_ms,
-        enrichment_status: response.data.enrichment_status,
-      });
-
-      // Navigate to results
-      navigation.replace('Results', {
-        result: {
-          request_id: response.data.request_id,
-          status: response.data.status,
-          rendering_mode: response.data.rendering_mode,
-          result: response.data.result,
-          context_pack: response.data.context_pack,
-          timings_ms: response.data.timings_ms,
-          enrichment_status: response.data.enrichment_status,
-        },
-        mediaUri: uri,
-      });
-
-    } catch (error) {
-      console.error('Upload/analysis error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      
-      handleError({
-        code: 'UPLOAD_FAILED',
-        message: errorMessage,
-        retryable: true,
-      });
-
-      navigation.navigate('Error', {
-        error: {
-          code: 'UPLOAD_FAILED',
-          message: errorMessage,
-          retryable: true,
-        },
-        canRetry: true,
-      });
-    } finally {
-      setIsProcessing(false);
-      setIsCapturing(false);
-    }
-  }, [
-    state,
-    startUpload,
-    updateUploadProgress,
-    startAnalysis,
-    receiveResults,
-    handleError,
-    navigation,
-  ]);
+  }, [isRecording, completeCapture, previewReady, handleError, navigation]);
 
   // Handle back/cancel
   const handleCancel = useCallback(() => {

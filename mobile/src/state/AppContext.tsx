@@ -53,6 +53,9 @@ interface AppContextValue {
   setUserConstraints: (constraints: UserConstraints) => void;
   startCapture: (captureType: CaptureType) => void;
   completeCapture: (result: CaptureResult) => void;
+  previewReady: (mediaUri: string, mediaType: CaptureType) => void;
+  acceptPreview: () => void;
+  retake: () => void;
   startUpload: () => void;
   updateUploadProgress: (progress: number) => void;
   startAnalysis: () => void;
@@ -125,6 +128,21 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     []
   );
 
+  const previewReady = useCallback(
+    (mediaUri: string, mediaType: CaptureType) => {
+      dispatch(actions.previewReady(mediaUri, mediaType));
+    },
+    []
+  );
+
+  const acceptPreview = useCallback(() => {
+    dispatch(actions.acceptPreview());
+  }, []);
+
+  const retake = useCallback(() => {
+    dispatch(actions.retake());
+  }, []);
+
   const startUpload = useCallback(() => {
     dispatch(actions.startUpload());
   }, []);
@@ -175,6 +193,9 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
+      previewReady,
+      acceptPreview,
+      retake,
       startUpload,
       updateUploadProgress,
       startAnalysis,
@@ -192,6 +213,9 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
+      previewReady,
+      acceptPreview,
+      retake,
       startUpload,
       updateUploadProgress,
       startAnalysis,

@@ -14,6 +14,7 @@ export type AppState =
   | 'Idle'
   | 'ModeSelected'
   | 'Capturing'
+  | 'Preview'
   | 'Uploading'
   | 'Analyzing'
   | 'Results'
@@ -75,6 +76,10 @@ export interface MachineState {
   captureType: CaptureType | null;
   captureResult: CaptureResult | null;
   
+  // Preview
+  previewMediaUri: string | null;
+  previewMediaType: CaptureType | null;
+  
   // Results
   analysisResult: AnalysisResult | null;
   
@@ -95,6 +100,8 @@ export const initialState: MachineState = {
   userConstraints: {},
   captureType: null,
   captureResult: null,
+  previewMediaUri: null,
+  previewMediaType: null,
   analysisResult: null,
   error: null,
   uploadProgress: 0,
@@ -112,6 +119,9 @@ export type AppAction =
   | { type: 'SET_USER_CONSTRAINTS'; payload: UserConstraints }
   | { type: 'START_CAPTURE'; payload: CaptureType }
   | { type: 'COMPLETE_CAPTURE'; payload: CaptureResult }
+  | { type: 'PREVIEW_READY'; payload: { mediaUri: string; mediaType: CaptureType } }
+  | { type: 'ACCEPT_PREVIEW' }
+  | { type: 'RETAKE' }
   | { type: 'START_UPLOAD' }
   | { type: 'UPDATE_UPLOAD_PROGRESS'; payload: number }
   | { type: 'START_ANALYSIS' }
@@ -153,6 +163,19 @@ export const actions = {
   completeCapture: (result: CaptureResult): AppAction => ({
     type: 'COMPLETE_CAPTURE',
     payload: result,
+  }),
+
+  previewReady: (mediaUri: string, mediaType: CaptureType): AppAction => ({
+    type: 'PREVIEW_READY',
+    payload: { mediaUri, mediaType },
+  }),
+
+  acceptPreview: (): AppAction => ({
+    type: 'ACCEPT_PREVIEW',
+  }),
+
+  retake: (): AppAction => ({
+    type: 'RETAKE',
   }),
 
   startUpload: (): AppAction => ({
@@ -243,6 +266,44 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
         captureResult: action.payload,
       };
 
+    case 'PREVIEW_READY':
+      if (state.state !== 'Capturing') {
+        console.warn('Invalid state transition: PREVIEW_READY from', state.state);
+        return state;
+      }
+      return {
+        ...state,
+        state: 'Preview',
+        previewMediaUri: action.payload.mediaUri,
+        previewMediaType: action.payload.mediaType,
+        error: null,
+      };
+
+    case 'ACCEPT_PREVIEW':
+      if (state.state !== 'Preview') {
+        console.warn('Invalid state transition: ACCEPT_PREVIEW from', state.state);
+        return state;
+      }
+      return {
+        ...state,
+        state: 'Uploading',
+        uploadProgress: 0,
+      };
+
+    case 'RETAKE':
+      if (state.state !== 'Preview') {
+        console.warn('Invalid state transition: RETAKE from', state.state);
+        return state;
+      }
+      return {
+        ...state,
+        state: 'ModeSelected',
+        previewMediaUri: null,
+        previewMediaType: null,
+        captureResult: null,
+        error: null,
+      };
+
     case 'START_UPLOAD':
       if (!state.captureResult) {
         console.warn('Cannot start upload without capture result');
@@ -290,6 +351,16 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
 
     case 'RETRY':
       // Go back to appropriate state based on where we can retry from
+      if (state.state === 'Preview') {
+        // From preview, retry means go back to uploading
+        return {
+          ...state,
+          state: 'Uploading',
+          error: null,
+          retryCount: state.retryCount + 1,
+          uploadProgress: 0,
+        };
+      }
       if (state.captureResult && state.retryCount < 1) {
         return {
           ...state,
@@ -305,6 +376,8 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
         state: state.mode ? 'ModeSelected' : 'Idle',
         error: null,
         captureResult: null,
+        previewMediaUri: null,
+        previewMediaType: null,
         analysisResult: null,
         retryCount: 0,
       };
@@ -341,8 +414,10 @@ export function getStateProgress(state: MachineState): number {
       return 10;
     case 'Capturing':
       return 20;
+    case 'Preview':
+      return 25;
     case 'Uploading':
-      return 20 + (state.uploadProgress * 0.4);
+      return 25 + (state.uploadProgress * 0.4);
     case 'Analyzing':
       return 70;
     case 'Results':

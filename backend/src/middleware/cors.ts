@@ -63,15 +63,29 @@ function validateOrigin(
 export function getCorsConfig(): FastifyCorsOptions {
   const allowedOrigins = parseAllowedOrigins();
   const devMode = process.env.CORS_DEV_MODE === 'true';
+  
+  console.log('🔐 CORS Debug Info:', {
+    CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS || '(not set)',
+    CORS_DEV_MODE: process.env.CORS_DEV_MODE || '(not set)',
+    CORS_ORIGIN: process.env.CORS_ORIGIN || '(not set)',
+    devMode,
+    allowedOrigins,
+  });
 
   return {
     // Origin handling
     origin: (origin, callback) => {
-      if (validateOrigin(origin, allowedOrigins)) {
+      const isAllowed = validateOrigin(origin, allowedOrigins);
+      if (isAllowed) {
         // Allow the request
         callback(null, origin || true);
       } else {
         // Deny the request
+        console.warn('🚫 CORS request blocked:', {
+          origin: origin || '(no origin header)',
+          allowedOrigins,
+          allowedList: Array.isArray(allowedOrigins) ? allowedOrigins : 'deny-all',
+        });
         callback(new Error('CORS origin not allowed'), false);
       }
     },

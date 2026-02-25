@@ -152,6 +152,15 @@ async function uploadAndAnalyze(
   const url = `${apiConfig.baseUrl}${endpoints.analyze}`;
   const authHeaders = getAuthHeaders();
   
+  // Diagnostic logging
+  console.log('📤 API Request:', {
+    url,
+    method: 'POST',
+    hasAuth: !!authHeaders.Authorization,
+    mediaType: media.mimeType,
+    timestamp: new Date().toISOString(),
+  });
+  
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
@@ -222,6 +231,15 @@ async function uploadAndAnalyze(
     
     // Setup error handler
     xhr.addEventListener('error', () => {
+      console.error('❌ XHR error event:', {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        responseText: xhr.responseText?.substring(0, 200),
+        headers: {
+          'Content-Type': xhr.getResponseHeader('content-type'),
+          'Access-Control-Allow-Origin': xhr.getResponseHeader('access-control-allow-origin'),
+        },
+      });
       reject(new ApiNetworkError('Network error during upload'));
     });
     
@@ -232,7 +250,9 @@ async function uploadAndAnalyze(
     // Setup timeout
     const totalTimeoutMs = apiConfig.uploadTimeoutMs + apiConfig.analysisTimeoutMs;
     xhr.timeout = totalTimeoutMs;
+    console.log('⏱️ Request timeout set to:', totalTimeoutMs + 'ms');
     xhr.addEventListener('timeout', () => {
+      console.error('⏱️ Request timed out after', totalTimeoutMs + 'ms');
       reject(new ApiTimeoutError('Request timeout'));
     });
     
@@ -251,12 +271,15 @@ async function uploadAndAnalyze(
     formData.append('metadata', JSON.stringify(metadata));
     
     // Open and configure request
+    console.log('🔗 Opening XHR connection to:', url);
     xhr.open('POST', url, true);
     
     // Add authorization header
     xhr.setRequestHeader('Authorization', authHeaders.Authorization);
+    console.log('🔑 Authorization header set');
     
     // Send request (don't set Content-Type, let the XMLHttpRequest set it with boundary)
+    console.log('📨 Sending request with FormData');
     xhr.send(formData);
   });
 }

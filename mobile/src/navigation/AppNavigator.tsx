@@ -5,6 +5,7 @@
  * Screens:
  * - HomeScreen: Mode selection (General/Specific)
  * - CaptureScreen: Photo/video capture
+ * - PreviewScreen: Review media before analysis
  * - ResultsScreen: Overlay display + tactics
  * - ErrorScreen: Error display with retry
  */
@@ -14,13 +15,14 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import {HomeScreen} from '../screens/HomeScreen';
 import {CaptureScreen} from '../screens/CaptureScreen';
+import {PreviewScreen} from '../screens/PreviewScreen';
 import {ResultsScreen} from '../screens/ResultsScreen';
 import {ErrorScreen} from '../screens/ErrorScreen';
 import type {RootStackParamList} from './types';
 
 // Re-export types and hooks for convenience
 export type {RootStackParamList} from './types';
-export {useAppNavigation, useCaptureRoute, useResultsRoute, useErrorRoute, type NavigationProp} from './hooks';
+export {useAppNavigation, useCaptureRoute, usePreviewRoute, useResultsRoute, useErrorRoute, type NavigationProp} from './hooks';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Navigator
@@ -65,6 +67,16 @@ export function AppNavigator(): React.JSX.Element {
           title: 'Capture',
           headerShown: false, // Full-screen camera
           animation: 'fade',
+        }}
+      />
+      
+      <Stack.Screen
+        name="Preview"
+        component={PreviewScreen}
+        options={{
+          title: 'Review Media',
+          headerBackTitle: 'Back',
+          animation: 'slide_from_right',
         }}
       />
       

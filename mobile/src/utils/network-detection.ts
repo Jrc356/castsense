@@ -37,6 +37,24 @@ export function isSimulator(): boolean {
   return !Device.isDevice;
 }
 
+/**
+ * Check if running on Android emulator specifically
+ * Android emulator returns isDevice=false but has specific platform characteristics
+ */
+export function isAndroidEmulator(): boolean {
+  if (!isSimulator()) return false;
+  // On Android emulator, Device.brand may be 'google' and model contains 'Android SDK'
+  // Or we can check if platform is 'android'
+  try {
+    return (
+      Device.osName === 'Android' && 
+      (!Device.isDevice || Device.brand === 'google')
+    );
+  } catch {
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LAN IP Detection
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,19 +118,45 @@ export function getRecommendedBackendUrl(
   defaultPort: number = 3000,
   fallbackUrl: string = 'http://localhost:3000'
 ): string {
-  // If on simulator, use localhost
+  console.log('🌐 getRecommendedBackendUrl called:', {
+    defaultPort,
+    fallbackUrl,
+    isSimulator: isSimulator(),
+    isPhysicalDevice: isPhysicalDevice(),
+    isAndroidEmulator: isAndroidEmulator(),
+  });
+
+  // Special case: Android emulator cannot reach localhost
+  // Android emulator uses 10.0.2.2 to refer to the host machine
+  if (isAndroidEmulator()) {
+    const url = `http://10.0.2.2:${defaultPort}`;
+    console.log('✅ Android emulator detected, using 10.0.2.2:', url);
+    return url;
+  }
+
+  // If on iOS simulator, use localhost
   if (isSimulator()) {
-    return `http://localhost:${defaultPort}`;
+    const url = `http://localhost:${defaultPort}`;
+    console.log('✅ iOS simulator detected, returning:', url);
+    return url;
   }
 
   // If on physical device, try to detect host LAN IP
   const hostIp = getHostIpFromExpo();
+  console.log('🔍 Host IP detection:', {
+    hostIp,
+    type: typeof hostIp,
+  });
+
   if (hostIp) {
-    return `http://${hostIp}:${defaultPort}`;
+    const url = `http://${hostIp}:${defaultPort}`;
+    console.log('✅ Physical device with detected IP, returning:', url);
+    return url;
   }
 
   // Fallback to provided URL
-  console.warn('Could not auto-detect host IP. Using fallback URL:', fallbackUrl);
+  console.warn('⚠️ Could not auto-detect host IP. Using fallback URL:', fallbackUrl);
+  console.log('Fallback URL type:', typeof fallbackUrl);
   return fallbackUrl;
 }
 
@@ -121,7 +165,8 @@ export function getRecommendedBackendUrl(
  */
 export function getNetworkInfo(defaultPort: number = 3000): NetworkInfo {
   const isPhysical = isPhysicalDevice();
-  const hostIp = isPhysical ? getHostIpFromExpo() : 'localhost';
+  const isAndroid = isAndroidEmulator();
+  const hostIp = isPhysical ? getHostIpFromExpo() : isAndroid ? '10.0.2.2' : 'localhost';
   const recommendedBackendUrl = getRecommendedBackendUrl(defaultPort);
 
   return {

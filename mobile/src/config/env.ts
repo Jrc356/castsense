@@ -119,6 +119,20 @@ function detectEnvironment(): 'development' | 'staging' | 'production' {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Check if a value is "empty" - handles null, undefined, empty strings, and empty objects
+ * Expo may serialize null as empty objects {}, so we need to check for that
+ */
+function isEmpty(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') {
+    return true;
+  }
+  if (typeof value === 'object' && Object.keys(value).length === 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Parse a boolean-like environment variable
  */
 function parseBoolean(value: string | boolean | undefined, defaultValue: boolean): boolean {
@@ -138,9 +152,15 @@ function loadEnvironment(): Environment {
   const currentEnv = detectEnvironment();
   const defaults = DEFAULTS[currentEnv];
 
+  console.log('📋 Loading environment config:', {
+    currentEnv,
+    expoExtra,
+    isApiBaseUrlEmpty: isEmpty(expoExtra.apiBaseUrl),
+  });
+
   return {
-    apiBaseUrl: expoExtra.apiBaseUrl || defaults.apiBaseUrl,
-    apiKey: expoExtra.apiKey || defaults.apiKey,
+    apiBaseUrl: isEmpty(expoExtra.apiBaseUrl) ? defaults.apiBaseUrl : (expoExtra.apiBaseUrl as string),
+    apiKey: isEmpty(expoExtra.apiKey) ? defaults.apiKey : (expoExtra.apiKey as string),
     envName: currentEnv,
     debugEnabled: parseBoolean(expoExtra.debugEnabled, defaults.debugEnabled),
     analyticsEnabled: parseBoolean(expoExtra.analyticsEnabled, defaults.analyticsEnabled),

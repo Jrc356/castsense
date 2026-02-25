@@ -25,13 +25,28 @@ validateEnvironment();
  * 3. Default localhost fallback
  */
 function getBackendUrl(): string {
+  console.log('🔍 getBackendUrl called:', {
+    'env type': typeof env,
+    'env value': env,
+    'env.apiBaseUrl': env.apiBaseUrl,
+    'env.apiBaseUrl type': typeof env.apiBaseUrl,
+  });
+
   // If explicit URL is provided via environment, use it
-  if (env.apiBaseUrl && env.apiBaseUrl !== 'http://localhost:3000') {
+  // Check that it's a non-empty string
+  if (typeof env.apiBaseUrl === 'string' && env.apiBaseUrl && env.apiBaseUrl !== 'http://localhost:3000') {
+    console.log('✅ Using explicit env.apiBaseUrl:', env.apiBaseUrl);
     return env.apiBaseUrl;
   }
 
   // Otherwise, auto-detect based on device type
+  console.log('🔄 Auto-detecting backend URL...');
   const autoDetectedUrl = getRecommendedBackendUrl(3000, 'http://localhost:3000');
+  console.log('🎯 Auto-detected URL:', {
+    value: autoDetectedUrl,
+    type: typeof autoDetectedUrl,
+    isString: typeof autoDetectedUrl === 'string',
+  });
   
   // In development, log the detection for debugging
   if (isDev) {
@@ -70,9 +85,17 @@ export interface ApiConfig {
  * API key comes from env.ts (expo-constants).
  * Other values are constants that match backend constraints.
  */
+const backendUrl = getBackendUrl();
+console.log('🔧 API Config Initialization:', {
+  backendUrl,
+  type: typeof backendUrl,
+  isString: typeof backendUrl === 'string',
+  stringValue: String(backendUrl),
+});
+
 export const apiConfig: ApiConfig = {
   // From environment configuration with auto-detection
-  baseUrl: getBackendUrl(),
+  baseUrl: backendUrl,
   apiKey: env.apiKey,
   
   // Timeouts
@@ -90,6 +113,12 @@ export const apiConfig: ApiConfig = {
   retryAttempts: isDev ? 1 : 2,
   retryDelayMs: 1000,
 };
+
+console.log('🎯 apiConfig.baseUrl after init:', {
+  value: apiConfig.baseUrl,
+  type: typeof apiConfig.baseUrl,
+  isString: typeof apiConfig.baseUrl === 'string',
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Endpoints

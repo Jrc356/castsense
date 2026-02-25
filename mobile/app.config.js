@@ -41,7 +41,9 @@ module.exports = {
     },
     platforms: ['ios', 'android'],
     extra: {
-      apiBaseUrl: process.env.API_BASE_URL || null,
+      // Support both API_BASE_URL and EXPO_PUBLIC_API_URL for flexibility
+      // EXPO_PUBLIC_API_URL is preferred for Expo development
+      apiBaseUrl: process.env.EXPO_PUBLIC_API_URL || process.env.API_BASE_URL || null,
       environment: process.env.NODE_ENV || 'development',
     },
   },
