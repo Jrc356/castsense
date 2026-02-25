@@ -11,7 +11,6 @@ import healthRoutes from './routes/health';
 import analyzeRoutes from './routes/analyze';
 
 // Import middleware
-import { authMiddleware } from './middleware/auth';
 import { rateLimiterMiddleware, startRateLimitCleanup } from './middleware/rate-limiter';
 import { getCorsConfig, logCorsConfig } from './middleware/cors';
 import { inputHardeningMiddleware, startInputHardeningCleanup } from './middleware/input-hardening';
@@ -67,10 +66,7 @@ async function start() {
       concurrency: config.rateLimitConcurrency
     }, 'Rate limiting configured');
 
-    // 4. Register authentication middleware (runs before all routes except health)
-    server.addHook('preHandler', authMiddleware);
-
-    // 5. Input hardening middleware (T6.3) - only for analyze route
+    // 4. Input hardening middleware (T6.3) - only for analyze route
     // We register it as a route-specific hook below when registering analyze routes
     startInputHardeningCleanup();
 
