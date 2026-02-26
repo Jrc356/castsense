@@ -222,7 +222,9 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
     case 'SELECT_MODE':
       return {
         ...state,
-        state: 'ModeSelected',
+        // Preserve ReadyToAnalyze state if we already have a capture
+        // This allows updating mode/species after capturing but before analyzing
+        state: state.state === 'ReadyToAnalyze' ? 'ReadyToAnalyze' : 'ModeSelected',
         mode: action.payload.mode,
         targetSpecies: action.payload.targetSpecies ?? null,
         error: null,
