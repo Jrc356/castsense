@@ -1,14 +1,15 @@
 /**
  * CastSense Capture Screen
  * 
- * Full-screen camera interface for capturing photos.
+ * Full-screen camera interface for capturing photos or selecting from gallery.
  * Features:
  * - Photo capture with local processing
+ * - Gallery selection from media library
  * - Analysis progress indication
  * - Error handling
  */
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -28,10 +29,9 @@ import {
 
 import {useApp} from '../state/AppContext';
 import {useAppNavigation} from '../navigation/hooks';
-import {capturePhoto, type CameraRef, type PhotoCapture} from '../services/camera';
-import {hasApiKey, getApiKey} from '../services/api-key-storage';
-import {runAnalysis} from '../services/analysis-orchestrator';
-import {getCurrentLocation} from '../services/metadata';
+import {capturePhoto, pickMediaFromLibrary, type CameraRef} from '../services/camera';
+import {hasApiKey} from '../services/api-key-storage';
+import {requestPermission} from '../services/permissions';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -48,10 +48,7 @@ export function CaptureScreen(): React.JSX.Element {
 
   const {
     state,
-    updateProcessingProgress,
-    updateEnrichmentProgress,
-    updateAIProgress,
-    receiveResults,
+    completeCapture,
     handleError,
     reset,
   } = useApp();
@@ -64,10 +61,11 @@ export function CaptureScreen(): React.JSX.Element {
 
   // Capture state
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isSelectingLibrary, setIsSelectingLibrary] = useState(false);
 
   // Handle photo capture
   const handlePhotoCapture = useCallback(async () => {
-    if (!cameraRef.current || isCapturing) return;
+    if (!cameraRef.current || isCapturing || isSelectingLibrary) return;
 
     try {
       // Check for API key before capture
@@ -92,56 +90,16 @@ export function CaptureScreen(): React.JSX.Element {
       // Capture photo
       const photo = await capturePhoto(cameraRef.current as unknown as CameraRef);
       
-      // Get location
-      const location = await getCurrentLocation();
-      
-      if (!location) {
-        throw new Error('Unable to get location. Please ensure GPS is enabled.');
-      }
-
-      // Get API key
-      const apiKey = await getApiKey();
-      if (!apiKey) {
-        throw new Error('No API key configured');
-      }
-
-      const result = await runAnalysis({
-        photoUri: photo.uri,
-        location,
-        options: {mode: state.mode || 'general'},
-        apiKey,
-        onProgress: (progress) => {
-          if (progress.stage === 'processing') {
-            updateProcessingProgress(progress.progress);
-          } else if (progress.stage === 'enriching') {
-            updateEnrichmentProgress(progress.progress);
-          } else if (progress.stage === 'analyzing') {
-            updateAIProgress(progress.progress);
-          }
-        },
+      // Store capture result and navigate back to HomeScreen
+      completeCapture({
+        uri: photo.uri,
+        width: photo.width,
+        height: photo.height,
+        sizeBytes: photo.sizeBytes,
+        mimeType: photo.mimeType || 'image/jpeg',
       });
-
-      if (result.success && result.data) {
-        receiveResults(result.data);
-        navigation.navigate('Results', {
-          result: result.data,
-          mediaUri: photo.uri,
-        });
-      } else {
-        handleError(result.error || {
-          code: 'UNKNOWN_ERROR',
-          message: 'Analysis failed',
-          retryable: true,
-        });
-        navigation.navigate('Error', {
-          error: result.error || {
-            code: 'UNKNOWN_ERROR',
-            message: 'Analysis failed',
-            retryable: true,
-          },
-          canRetry: true,
-        });
-      }
+      
+      navigation.navigate('Home');
 
     } catch (error) {
       console.error('Photo capture error:', error);
@@ -158,16 +116,77 @@ export function CaptureScreen(): React.JSX.Element {
     } finally {
       setIsCapturing(false);
     }
-  }, [
-    isCapturing,
-    state.mode,
-    navigation,
-    updateProcessingProgress,
-    updateEnrichmentProgress,
-    updateAIProgress,
-    receiveResults,
-    handleError,
-  ]);
+  }, [isCapturing, isSelectingLibrary, completeCapture, navigation, handleError]);
+
+  // Handle gallery selection
+  const handleGallerySelect = useCallback(async () => {
+    if (isSelectingLibrary || isCapturing) return;
+
+    try {
+      // Check for API key before selecting
+      const hasKey = await hasApiKey();
+      if (!hasKey) {
+        Alert.alert(
+          'API Key Required',
+          'Please set your OpenAI API key in Settings before selecting a photo.',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {
+              text: 'Go to Settings',
+              onPress: () => navigation.navigate('Settings'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Request media library permission
+      const permStatus = await requestPermission('mediaLibrary');
+      if (permStatus !== 'granted') {
+        Alert.alert(
+          'Permission Denied',
+          'Media library access is required to select photos.'
+        );
+        return;
+      }
+
+      setIsSelectingLibrary(true);
+
+      // Pick photo from library
+      const libraryPhoto = await pickMediaFromLibrary();
+      
+      if (!libraryPhoto) {
+        // User cancelled selection
+        return;
+      }
+
+      // Store capture result and navigate back to HomeScreen
+      completeCapture({
+        uri: libraryPhoto.uri,
+        width: libraryPhoto.width,
+        height: libraryPhoto.height,
+        sizeBytes: libraryPhoto.sizeBytes,
+        mimeType: libraryPhoto.mimeType || 'image/jpeg',
+      });
+      
+      navigation.navigate('Home');
+
+    } catch (error) {
+      console.error('Gallery selection error:', error);
+      const appError = {
+        code: 'LIBRARY_SELECT_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to select photo. Please try again.',
+        retryable: true,
+      };
+      handleError(appError);
+      navigation.navigate('Error', {
+        error: appError,
+        canRetry: true,
+      });
+    } finally {
+      setIsSelectingLibrary(false);
+    }
+  }, [isSelectingLibrary, isCapturing, completeCapture, navigation, handleError]);
 
   // Handle back/cancel
   const handleCancel = useCallback(() => {
@@ -180,7 +199,7 @@ export function CaptureScreen(): React.JSX.Element {
     setCameraPosition((pos: CameraPosition) => pos === 'back' ? 'front' : 'back');
   }, []);
 
-  // Render loading state
+  // Render permission error
   if (!hasPermission) {
     return (
       <SafeAreaView style={styles.container}>
@@ -194,6 +213,7 @@ export function CaptureScreen(): React.JSX.Element {
     );
   }
 
+  // Render loading state
   if (!device) {
     return (
       <SafeAreaView style={styles.container}>
@@ -205,17 +225,10 @@ export function CaptureScreen(): React.JSX.Element {
     );
   }
 
-  // Determine processing status
-  const isAnalyzing = state.state === 'Processing' || state.state === 'Enriching' || state.state === 'Analyzing';
-  const progressPercent = 
-    state.state === 'Processing' ? state.processingProgress :
-    state.state === 'Enriching' ? state.enrichmentProgress :
-    state.state === 'Analyzing' ? state.aiProgress : 0;
+  // Determine status
   const statusMessage =
-    state.state === 'Processing' ? 'Processing image...' :
-    state.state === 'Enriching' ? 'Gathering context...' :
-    state.state === 'Analyzing' ? 'Analyzing with AI...' :
-    isCapturing ? 'Capturing...' : '';
+    isCapturing ? 'Capturing...' :
+    isSelectingLibrary ? 'Selecting photo...' : '';
 
   return (
     <View style={styles.container}>
@@ -224,20 +237,15 @@ export function CaptureScreen(): React.JSX.Element {
         ref={cameraRef}
         style={styles.camera}
         device={device}
-        isActive={!isAnalyzing}
+        isActive={true}
         photo={true}
       />
 
-      {/* Processing overlay */}
-      {isAnalyzing && (
+      {/* Status overlay */}
+      {statusMessage && (
         <View style={styles.processingOverlay}>
           <ActivityIndicator size="large" color="#ffffff" />
           <Text style={styles.processingText}>{statusMessage}</Text>
-          {progressPercent > 0 && (
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, {width: `${progressPercent}%`}]} />
-            </View>
-          )}
         </View>
       )}
 
@@ -246,7 +254,7 @@ export function CaptureScreen(): React.JSX.Element {
         <TouchableOpacity 
           style={styles.topButton} 
           onPress={handleCancel}
-          disabled={isCapturing || isAnalyzing}
+          disabled={isCapturing || isSelectingLibrary}
         >
           <Text style={styles.topButtonText}>Cancel</Text>
         </TouchableOpacity>
@@ -254,25 +262,34 @@ export function CaptureScreen(): React.JSX.Element {
         <TouchableOpacity 
           style={styles.topButton} 
           onPress={handleFlipCamera}
-          disabled={isCapturing || isAnalyzing}
+          disabled={isCapturing || isSelectingLibrary}
         >
           <Text style={styles.topButtonText}>Flip</Text>
         </TouchableOpacity>
       </SafeAreaView>
 
       {/* Bottom controls */}
-      {!isAnalyzing && (
+      {!statusMessage && (
         <SafeAreaView style={styles.bottomControls} edges={['bottom']}>
+          <TouchableOpacity
+            style={[styles.captureButton, styles.galleryButton]}
+            onPress={handleGallerySelect}
+            disabled={isCapturing || isSelectingLibrary}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.galleryButtonText}>📷</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.captureButton, styles.photoButton]}
             onPress={handlePhotoCapture}
-            disabled={isCapturing}
+            disabled={isCapturing || isSelectingLibrary}
             activeOpacity={0.7}
           >
             <View style={styles.captureButtonInner} />
           </TouchableOpacity>
 
-          <Text style={styles.hintText}>Tap to capture photo</Text>
+          <Text style={styles.hintText}>Capture or select photo</Text>
         </SafeAreaView>
       )}
     </View>
@@ -348,46 +365,68 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingBottom: 32,
+    paddingVertical: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    borderColor: '#ffffff',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  photoButton: {},
+  photoButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    marginTop: 12,
+  },
   captureButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#ffffff',
   },
-  hintText: {
-    color: '#ffffff',
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  galleryButton: {
+    position: 'absolute',
+    left: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  galleryButtonText: {
+    fontSize: 28,
+  },
+  hintText: {
+    marginTop: 12,
+    color: '#ffffff',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   processingText: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: 16,
     marginTop: 16,
     textAlign: 'center',
   },
   progressBar: {
-    width: '80%',
+    width: 200,
     height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 2,
@@ -396,7 +435,6 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
+    backgroundColor: '#ffffff',
   },
 });

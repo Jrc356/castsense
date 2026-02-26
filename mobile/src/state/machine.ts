@@ -14,6 +14,7 @@ export type AppState =
   | 'Idle'
   | 'ModeSelected'
   | 'Capturing'
+  | 'ReadyToAnalyze'
   | 'Processing'
   | 'Enriching'
   | 'Analyzing'
@@ -116,6 +117,7 @@ export type AppAction =
   | { type: 'SET_USER_CONSTRAINTS'; payload: UserConstraints }
   | { type: 'START_CAPTURE' }
   | { type: 'COMPLETE_CAPTURE'; payload: CaptureResult }
+  | { type: 'START_ANALYSIS' }
   | { type: 'START_PROCESSING' }
   | { type: 'UPDATE_PROCESSING_PROGRESS'; payload: number }
   | { type: 'START_ENRICHMENT' }
@@ -159,6 +161,10 @@ export const actions = {
   completeCapture: (result: CaptureResult): AppAction => ({
     type: 'COMPLETE_CAPTURE',
     payload: result,
+  }),
+
+  startAnalysis: (): AppAction => ({
+    type: 'START_ANALYSIS',
   }),
 
   startProcessing: (): AppAction => ({
@@ -259,10 +265,28 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       }
       return {
         ...state,
+        state: 'ReadyToAnalyze',
         captureResult: action.payload,
       };
 
+    case 'START_ANALYSIS':
+      if (state.state !== 'ReadyToAnalyze') {
+        console.warn('Invalid state transition: START_ANALYSIS from', state.state);
+        return state;
+      }
+      if (!state.captureResult) {
+        console.warn('Cannot start analysis without capture result');
+        return state;
+      }
+      return {
+        ...state,
+        state: 'Processing',
+        processingProgress: 0,
+        error: null,
+      };
+
     case 'START_PROCESSING':
+      // This can be dispatched from ReadyToAnalyze (via START_ANALYSIS) or directly
       if (!state.captureResult) {
         console.warn('Cannot start processing without capture result');
         return state;
@@ -375,6 +399,10 @@ export function canStartCapture(state: MachineState): boolean {
   return state.state === 'ModeSelected' || state.state === 'Idle';
 }
 
+export function canStartAnalysis(state: MachineState): boolean {
+  return state.state === 'ReadyToAnalyze' && state.captureResult !== null;
+}
+
 export function canRetry(state: MachineState): boolean {
   return (
     state.state === 'Error' &&
@@ -391,6 +419,8 @@ export function getStateProgress(state: MachineState): number {
       return 5;
     case 'Capturing':
       return 10;
+    case 'ReadyToAnalyze':
+      return 12;
     case 'Processing':
       return 15 + (state.processingProgress * 10);
     case 'Enriching':

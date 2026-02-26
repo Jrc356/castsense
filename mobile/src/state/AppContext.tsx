@@ -28,6 +28,7 @@ import {
   type GearType,
   type UserConstraints,
   canStartCapture,
+  canStartAnalysis,
   canRetry,
   getStateProgress,
 } from './machine';
@@ -42,6 +43,7 @@ interface AppContextValue {
   
   // Computed
   canStartCapture: boolean;
+  canStartAnalysis: boolean;
   canRetry: boolean;
   progress: number;
   
@@ -52,6 +54,7 @@ interface AppContextValue {
   setUserConstraints: (constraints: UserConstraints) => void;
   startCapture: () => void;
   completeCapture: (result: CaptureResult) => void;
+  startAnalysis: () => void;
   startProcessing: () => void;
   updateProcessingProgress: (progress: number) => void;
   startEnrichment: () => void;
@@ -124,6 +127,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     []
   );
 
+  const startAnalysis = useCallback(() => {
+    dispatch(actions.startAnalysis());
+  }, []);
+
   const startProcessing = useCallback(() => {
     dispatch(actions.startProcessing());
   }, []);
@@ -184,6 +191,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     () => ({
       state,
       canStartCapture: canStartCapture(state),
+      canStartAnalysis: canStartAnalysis(state),
       canRetry: canRetry(state),
       progress: getStateProgress(state),
       selectMode,
@@ -192,6 +200,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
+      startAnalysis,
       startProcessing,
       updateProcessingProgress,
       startEnrichment,
@@ -212,6 +221,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setUserConstraints,
       startCapture,
       completeCapture,
+      startAnalysis,
       startProcessing,
       updateProcessingProgress,
       startEnrichment,
