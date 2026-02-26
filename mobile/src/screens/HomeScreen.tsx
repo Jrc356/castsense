@@ -373,6 +373,38 @@ export function HomeScreen(): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         scrollEnabled={!isInAnalysis}
       >
+        {/* Capture Button (moved to top) */}
+        <View style={styles.captureSection}>
+          {(state.state === 'ReadyToAnalyze' || isInAnalysis) && state.captureResult ? (
+            <TouchableOpacity
+              style={[
+                styles.captureButton, 
+                styles.analyzeButton,
+                isInAnalysis && styles.buttonDisabled
+              ]}
+              onPress={handleAnalyze}
+              activeOpacity={0.8}
+              disabled={!canStartAnalysis || isInAnalysis}
+            >
+              {isInAnalysis ? (
+                <>
+                  <ActivityIndicator size="small" color="#ffffff" style={styles.buttonSpinner} />
+                  <Text style={styles.captureButtonText}>Analyzing...</Text>
+                </>
+              ) : (
+                <Text style={styles.captureButtonText}>Analyze</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.captureButton, styles.photoButton]}
+              onPress={handleStartCapture}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.captureButtonText}>Take Photo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {/* Preview Section (when media is captured or analyzing) */}
         {(state.state === 'ReadyToAnalyze' || isInAnalysis) && state.captureResult && (
           <View style={styles.previewSection}>
@@ -513,38 +545,7 @@ export function HomeScreen(): React.JSX.Element {
           />
         </View>
 
-        {/* Capture Button */}
-        <View style={styles.captureSection}>
-          {(state.state === 'ReadyToAnalyze' || isInAnalysis) && state.captureResult ? (
-            <TouchableOpacity
-              style={[
-                styles.captureButton, 
-                styles.analyzeButton,
-                isInAnalysis && styles.buttonDisabled
-              ]}
-              onPress={handleAnalyze}
-              activeOpacity={0.8}
-              disabled={!canStartAnalysis || isInAnalysis}
-            >
-              {isInAnalysis ? (
-                <>
-                  <ActivityIndicator size="small" color="#ffffff" style={styles.buttonSpinner} />
-                  <Text style={styles.captureButtonText}>Analyzing...</Text>
-                </>
-              ) : (
-                <Text style={styles.captureButtonText}>Analyze</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.captureButton, styles.photoButton]}
-              onPress={handleStartCapture}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.captureButtonText}>Take Photo</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* (captureSection removed from bottom — moved above preview and mode selection) */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -647,6 +648,7 @@ const styles = StyleSheet.create({
   captureSection: {
     marginTop: 8,
     gap: 12,
+    marginBottom: 20,
   },
   captureButton: {
     borderRadius: 14,
