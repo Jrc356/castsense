@@ -9,7 +9,7 @@ import OpenAI from 'openai';
 import type { ChatCompletionContentPart } from 'openai/resources/chat/completions';
 import { EnrichmentResults } from './enrichment';
 
-const AI_TIMEOUT_MS_PHOTO = 12000;
+const AI_TIMEOUT_MS_PHOTO = 30000;
 
 // ============================================================================
 // Types
@@ -378,7 +378,7 @@ export async function analyzeImage(
     const completion = await openai.chat.completions.create({
       model,
       messages: [{ role: 'user', content }],
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
       temperature: 0.7
     });
 

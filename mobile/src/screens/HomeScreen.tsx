@@ -150,43 +150,52 @@ export function HomeScreen(): React.JSX.Element {
     return null;
   };
 
-  // Load available models from OpenAI API on component mount
-  useEffect(() => {
-    const loadModels = async () => {
+  // Load available models from OpenAI API
+  const loadModels = useCallback(async () => {
+    try {
+      setLoadingModels(true);
+      setModelLoadError(null);
+
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        setModelLoadError('API key not configured');
+        selectModel('gpt-4o');
+        return;
+      }
+
       try {
-        setLoadingModels(true);
-        setModelLoadError(null);
-
-        const apiKey = await getApiKey();
-        if (!apiKey) {
-          setModelLoadError('API key not configured');
-          return;
-        }
-
-        // Fetch all available models (sorted by tier and creation date)
+        // Fetch all available models with retry logic (sorted by tier and creation date)
         const models = await fetchAvailableModels(apiKey);
         if (models.length > 0) {
           setAvailableModels(models);
           // Select latest GPT-5 model if available, otherwise select first model
           if (!state.selectedModel) {
             const gpt5Model = models.find(m => m.toLowerCase().startsWith('gpt-5'));
-            selectModel(gpt5Model || models[0]);
+            selectModel(gpt5Model ?? models[0]!);
           }
         } else {
           setModelLoadError('No models available');
+          selectModel('gpt-4o');
         }
-      } catch (error) {
-        console.error('Failed to load models:', error);
-        setModelLoadError('Failed to fetch models');
-        // Fallback to default model
+      } catch (fetchError) {
+        // fetchAvailableModels already retried internally
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Failed to fetch models';
+        setModelLoadError(errorMessage);
         selectModel('gpt-4o');
-      } finally {
-        setLoadingModels(false);
       }
-    };
+    } catch (error) {
+      console.error('Unexpected error loading models:', error);
+      setModelLoadError('Unexpected error loading models');
+      selectModel('gpt-4o');
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [selectModel, setAvailableModels]);
 
+  // Load available models from OpenAI API on component mount
+  useEffect(() => {
     loadModels();
-  }, []);
+  }, [loadModels]);
 
   // Configure header with settings button
   useLayoutEffect(() => {
@@ -547,6 +556,12 @@ export function HomeScreen(): React.JSX.Element {
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{modelLoadError}</Text>
               <Text style={styles.errorSubtext}>Using default: {state.selectedModel || 'gpt-4o'}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={loadModels}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
             </View>
           ) : state.availableModels.length > 0 ? (
             <>
@@ -927,6 +942,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  retryButton: {
+    marginTop: 12,
+    backgroundColor: '#ffc107',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '600',
   },
   modelDisplay: {
     backgroundColor: '#ffffff',
