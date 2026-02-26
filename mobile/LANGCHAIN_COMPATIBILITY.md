@@ -9,6 +9,15 @@ Successfully installed on **February 26, 2026**:
 
 Installation required `--legacy-peer-deps` flag due to pre-existing `react-test-renderer` peer dependency conflict (unrelated to LangChain).
 
+### Known Dependency Issues
+
+⚠️ **Deprecated Transitive Dependency**: `@langchain/langgraph-sdk@2.0.0`
+- **Source**: Pulled in by `langchain@1.2.27`
+- **Warning**: "This version is not intended for use. Please use 1.x versions"
+- **Impact**: No runtime issues observed; this appears to be a version marker/placeholder
+- **Action**: Monitor for updates to `langchain` package that resolve this. The main `langchain` package maintainers should address this in a future release.
+- **Status**: Known issue as of February 26, 2026. Automated tests pass without errors.
+
 ## Node.js Environment Testing
 
 ✅ All packages import successfully in Node.js environment
@@ -54,10 +63,10 @@ import 'text-encoding-polyfill';
 
 ### Testing Strategy
 
-1. **Component Test Created**: `src/components/LangChainTest.tsx`
+1. **Automated Test Suite**: `src/__tests__/langchain-compatibility.test.ts`
    - Tests import of `@langchain/core` and `@langchain/openai`
-   - Checks for required global APIs
-   - Can be temporarily imported in `App.tsx` to verify compatibility
+   - Checks for required global APIs (TextEncoder, TextDecoder, URL, crypto.getRandomValues)
+   - Runs as part of `npm test`
 
 2. **Next Steps** (Task 2):
    - Actually import LangChain in the mobile app
@@ -74,7 +83,7 @@ import 'text-encoding-polyfill';
 ## References
 
 - Test scripts created: `test-langchain-imports.js`, `test-langchain-instantiation.js`
-- Test component: `src/components/LangChainTest.tsx`
+- Automated test suite: `src/__tests__/langchain-compatibility.test.ts`
 - Metro config already includes workaround for package exports
 
 ## Status

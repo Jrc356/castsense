@@ -33,11 +33,7 @@ describe('LangChain.js Compatibility', () => {
     expect(typeof TextEncoder).toBe('function');
     expect(typeof TextDecoder).toBe('function');
     expect(typeof URL).toBe('function');
-    
-    // crypto.getRandomValues is typically available in React Native
-    // but let's check if it's defined
-    if (typeof crypto !== 'undefined') {
-      expect(typeof crypto.getRandomValues).toBe('function');
-    }
+    expect(typeof crypto).not.toBe('undefined');
+    expect(typeof crypto.getRandomValues).toBe('function');
   });
 });
