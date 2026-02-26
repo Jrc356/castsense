@@ -21,6 +21,7 @@ import {
   TextInput,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
@@ -123,6 +124,23 @@ export function HomeScreen(): React.JSX.Element {
 
   // Track if we're currently running analysis to prevent duplicate runs
   const isAnalyzing = useRef(false);
+
+  // Check if we're in an analyzing state (to show loading overlay)
+  const isInAnalysis = state.state === 'Processing' || state.state === 'Enriching' || state.state === 'Analyzing';
+
+  // Determine which analysis stage we're in for progress display
+  const getAnalysisStage = (): { label: string; progress: number } | null => {
+    if (state.state === 'Processing') {
+      return { label: 'Processing image...', progress: state.processingProgress };
+    }
+    if (state.state === 'Enriching') {
+      return { label: 'Enriching with location data...', progress: state.enrichmentProgress };
+    }
+    if (state.state === 'Analyzing') {
+      return { label: 'Analyzing with AI...', progress: state.aiProgress };
+    }
+    return null;
+  };
 
   // Configure header with settings button
   useLayoutEffect(() => {
@@ -353,48 +371,76 @@ export function HomeScreen(): React.JSX.Element {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!isInAnalysis}
       >
-        {/* Preview Section (when media is captured) */}
-        {state.state === 'ReadyToAnalyze' && state.captureResult && (
+        {/* Preview Section (when media is captured or analyzing) */}
+        {(state.state === 'ReadyToAnalyze' || isInAnalysis) && state.captureResult && (
           <View style={styles.previewSection}>
             <Text style={styles.previewTitle}>Preview</Text>
-            <Image
-              source={{ uri: state.captureResult.uri }}
-              style={styles.previewImage}
-              resizeMode="cover"
-            />
-            <TouchableOpacity
-              style={styles.retakeButton}
-              onPress={handleRetake}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.retakeButtonText}>Retake Photo</Text>
-            </TouchableOpacity>
-            <Text style={styles.editHint}>Edit details below, then analyze:</Text>
+            <View style={styles.previewImageContainer}>
+              <Image
+                source={{ uri: state.captureResult.uri }}
+                style={styles.previewImage}
+                resizeMode="cover"
+              />
+              {/* Loading Overlay */}
+              {isInAnalysis && (
+                <View style={styles.loadingOverlay}>
+                  <View style={styles.loadingContent}>
+                    <ActivityIndicator size="large" color="#ffffff" />
+                    <Text style={styles.loadingText}>
+                      {getAnalysisStage()?.label || 'Analyzing...'}
+                    </Text>
+                    {getAnalysisStage()?.progress !== undefined && getAnalysisStage()!.progress > 0 && (
+                      <View style={styles.progressBar}>
+                        <View 
+                          style={[
+                            styles.progressFill, 
+                            { width: `${(getAnalysisStage()!.progress * 100).toFixed(0)}%` }
+                          ]} 
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+            {!isInAnalysis && (
+              <>
+                <TouchableOpacity
+                  style={styles.retakeButton}
+                  onPress={handleRetake}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                </TouchableOpacity>
+                <Text style={styles.editHint}>Edit details below, then analyze:</Text>
+              </>
+            )}
           </View>
         )}
         {/* Mode Selection */}
-        <View style={styles.section}>
+        <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
           <Text style={styles.sectionTitle}>Analysis Mode</Text>
           <View style={styles.modeContainer}>
             <ModeButton
               title="General"
               description="Identify likely species and get tailored tactics for your spot"
               selected={selectedMode === 'general'}
-              onPress={() => handleModeSelect('general')}
+              onPress={() => !isInAnalysis && handleModeSelect('general')}
             />
             <ModeButton
               title="Specific"
               description="Get tactics optimized for a specific target species"
               selected={selectedMode === 'specific'}
-              onPress={() => handleModeSelect('specific')}
+              onPress={() => !isInAnalysis && handleModeSelect('specific')}
             />
           </View>
         </View>
 
         {/* Target Species (for Specific mode) */}
         {selectedMode === 'specific' && (
-          <View style={styles.section}>
+          <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
             <Text style={styles.sectionTitle}>Target Species</Text>
             <TextInput
               style={styles.textInput}
@@ -403,56 +449,57 @@ export function HomeScreen(): React.JSX.Element {
               onChangeText={setTargetSpecies}
               autoCapitalize="words"
               returnKeyType="done"
+              editable={!isInAnalysis}
             />
           </View>
         )}
 
         {/* Platform Context */}
-        <View style={styles.section}>
+        <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
           <Text style={styles.sectionTitle}>Fishing From (Optional)</Text>
           <View style={styles.optionRow}>
             <OptionButton
               title="Shore"
               selected={platform === 'shore'}
-              onPress={() => setPlatform(platform === 'shore' ? null : 'shore')}
+              onPress={() => !isInAnalysis && setPlatform(platform === 'shore' ? null : 'shore')}
             />
             <OptionButton
               title="Kayak"
               selected={platform === 'kayak'}
-              onPress={() => setPlatform(platform === 'kayak' ? null : 'kayak')}
+              onPress={() => !isInAnalysis && setPlatform(platform === 'kayak' ? null : 'kayak')}
             />
             <OptionButton
               title="Boat"
               selected={platform === 'boat'}
-              onPress={() => setPlatform(platform === 'boat' ? null : 'boat')}
+              onPress={() => !isInAnalysis && setPlatform(platform === 'boat' ? null : 'boat')}
             />
           </View>
         </View>
 
         {/* Gear Type */}
-        <View style={styles.section}>
+        <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
           <Text style={styles.sectionTitle}>Gear Type (Optional)</Text>
           <View style={styles.optionRow}>
             <OptionButton
               title="Spinning"
               selected={gear === 'spinning'}
-              onPress={() => setGear(gear === 'spinning' ? 'unknown' : 'spinning')}
+              onPress={() => !isInAnalysis && setGear(gear === 'spinning' ? 'unknown' : 'spinning')}
             />
             <OptionButton
               title="Baitcast"
               selected={gear === 'baitcasting'}
-              onPress={() => setGear(gear === 'baitcasting' ? 'unknown' : 'baitcasting')}
+              onPress={() => !isInAnalysis && setGear(gear === 'baitcasting' ? 'unknown' : 'baitcasting')}
             />
             <OptionButton
               title="Fly"
               selected={gear === 'fly'}
-              onPress={() => setGear(gear === 'fly' ? 'unknown' : 'fly')}
+              onPress={() => !isInAnalysis && setGear(gear === 'fly' ? 'unknown' : 'fly')}
             />
           </View>
         </View>
 
         {/* Notes */}
-        <View style={styles.section}>
+        <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
           <Text style={styles.sectionTitle}>Notes (Optional)</Text>
           <TextInput
             style={[styles.textInput, styles.notesInput]}
@@ -462,19 +509,31 @@ export function HomeScreen(): React.JSX.Element {
             multiline
             numberOfLines={2}
             textAlignVertical="top"
+            editable={!isInAnalysis}
           />
         </View>
 
         {/* Capture Button */}
         <View style={styles.captureSection}>
-          {state.state === 'ReadyToAnalyze' && state.captureResult ? (
+          {(state.state === 'ReadyToAnalyze' || isInAnalysis) && state.captureResult ? (
             <TouchableOpacity
-              style={[styles.captureButton, styles.analyzeButton]}
+              style={[
+                styles.captureButton, 
+                styles.analyzeButton,
+                isInAnalysis && styles.buttonDisabled
+              ]}
               onPress={handleAnalyze}
               activeOpacity={0.8}
-              disabled={!canStartAnalysis}
+              disabled={!canStartAnalysis || isInAnalysis}
             >
-              <Text style={styles.captureButtonText}>Analyze</Text>
+              {isInAnalysis ? (
+                <>
+                  <ActivityIndicator size="small" color="#ffffff" style={styles.buttonSpinner} />
+                  <Text style={styles.captureButtonText}>Analyzing...</Text>
+                </>
+              ) : (
+                <Text style={styles.captureButtonText}>Analyze</Text>
+              )}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -593,6 +652,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 18,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   photoButton: {
     backgroundColor: '#007AFF',
@@ -651,5 +712,54 @@ const styles = StyleSheet.create({
   },
   analyzeButton: {
     backgroundColor: '#34c759',
+  },
+  previewImageContainer: {
+    width: '100%',
+    position: 'relative',
+    marginBottom: 12,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  progressBar: {
+    width: 200,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 2,
+  },
+  sectionDisabled: {
+    opacity: 0.5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonSpinner: {
+    marginRight: 8,
   },
 });
