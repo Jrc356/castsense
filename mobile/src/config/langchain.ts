@@ -30,7 +30,7 @@ import { ChatOpenAI } from '@langchain/openai';
  * 
  * Value: 0.7 (balanced between creativity and consistency)
  */
-export const LANGCHAIN_TEMPERATURE = 0.7;
+export const LANGCHAIN_TEMPERATURE = 0.7 as const;
 
 /**
  * Request timeout in milliseconds.
@@ -40,7 +40,7 @@ export const LANGCHAIN_TEMPERATURE = 0.7;
  * 
  * Value: 30000ms (30 seconds)
  */
-export const LANGCHAIN_TIMEOUT_MS = 30000;
+export const LANGCHAIN_TIMEOUT_MS = 30000 as const;
 
 /**
  * Maximum tokens for AI response.
@@ -50,7 +50,7 @@ export const LANGCHAIN_TIMEOUT_MS = 30000;
  * 
  * Value: 4096 tokens (sufficient for detailed analysis with tactics)
  */
-export const LANGCHAIN_MAX_TOKENS = 4096;
+export const LANGCHAIN_MAX_TOKENS = 4096 as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Factory Functions
@@ -67,8 +67,10 @@ export const LANGCHAIN_MAX_TOKENS = 4096;
  * 
  * Vision support is automatically enabled for vision-capable models
  * (e.g., gpt-4-vision-preview, gpt-4o, gpt-4-turbo).
- * 
- * @param apiKey - User's OpenAI API key (required for BYO-API-key model)
+ *  * **Important:** The model must be vision-capable to support image analysis.
+ * Use models like 'gpt-4o', 'gpt-4-vision-preview', or 'gpt-4-turbo' for
+ * fishing spot analysis from photos.
+ *  * @param apiKey - User's OpenAI API key (required for BYO-API-key model)
  * @param modelName - OpenAI model identifier (e.g., 'gpt-4o', 'gpt-4-vision-preview')
  * @returns Configured ChatOpenAI instance ready for inference
  * 
