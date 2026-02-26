@@ -22,6 +22,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
@@ -34,6 +36,7 @@ import {
 import {runAnalysis} from '../services/analysis-orchestrator';
 import {getCurrentLocation} from '../services/metadata';
 import {getApiKey} from '../services/api-key-storage';
+import {fetchAvailableModels} from '../services/model-discovery';
 import type {
   AnalysisMode,
   PlatformContext,
@@ -105,6 +108,8 @@ export function HomeScreen(): React.JSX.Element {
     setPlatformContext,
     setGearType,
     setUserConstraints,
+    selectModel,
+    setAvailableModels,
     startCapture,
     startAnalysis,
     updateProcessingProgress,
@@ -121,6 +126,9 @@ export function HomeScreen(): React.JSX.Element {
   const [platform, setPlatform] = useState<PlatformContext | null>(state.platformContext);
   const [gear, setGear] = useState<GearType>(state.gearType);
   const [notes, setNotes] = useState<string>(state.userConstraints.notes || '');
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [showModelSelector, setShowModelSelector] = useState(false);
 
   // Track if we're currently running analysis to prevent duplicate runs
   const isAnalyzing = useRef(false);
@@ -141,6 +149,44 @@ export function HomeScreen(): React.JSX.Element {
     }
     return null;
   };
+
+  // Load available models from OpenAI API on component mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        setLoadingModels(true);
+        setModelLoadError(null);
+
+        const apiKey = await getApiKey();
+        if (!apiKey) {
+          setModelLoadError('API key not configured');
+          return;
+        }
+
+        // Fetch all available models (sorted by tier and creation date)
+        const models = await fetchAvailableModels(apiKey);
+        if (models.length > 0) {
+          setAvailableModels(models);
+          // Select latest GPT-5 model if available, otherwise select first model
+          if (!state.selectedModel) {
+            const gpt5Model = models.find(m => m.toLowerCase().startsWith('gpt-5'));
+            selectModel(gpt5Model || models[0]);
+          }
+        } else {
+          setModelLoadError('No models available');
+        }
+      } catch (error) {
+        console.error('Failed to load models:', error);
+        setModelLoadError('Failed to fetch models');
+        // Fallback to default model
+        selectModel('gpt-4o');
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+
+    loadModels();
+  }, []);
 
   // Configure header with settings button
   useLayoutEffect(() => {
@@ -188,6 +234,7 @@ export function HomeScreen(): React.JSX.Element {
           location,
           options: {mode: state.mode || 'general'},
           apiKey,
+          model: state.selectedModel || 'gpt-4o',
           onProgress: (progress) => {
             if (progress.stage === 'processing') {
               updateProcessingProgress(progress.progress);
@@ -428,7 +475,9 @@ export function HomeScreen(): React.JSX.Element {
                         <View 
                           style={[
                             styles.progressFill, 
-                            { width: `${(getAnalysisStage()!.progress * 100).toFixed(0)}%` }
+                            { 
+                              width: Math.round(getAnalysisStage()!.progress * 100) + '%'
+                            } as any
                           ]} 
                         />
                       </View>
@@ -485,6 +534,90 @@ export function HomeScreen(): React.JSX.Element {
             />
           </View>
         )}
+
+        {/* AI Model Selection */}
+        <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
+          <Text style={styles.sectionTitle}>AI Model</Text>
+          {loadingModels ? (
+            <View style={styles.modelDisplay}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.modelDisplayText}>Loading models...</Text>
+            </View>
+          ) : modelLoadError ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{modelLoadError}</Text>
+              <Text style={styles.errorSubtext}>Using default: {state.selectedModel || 'gpt-4o'}</Text>
+            </View>
+          ) : state.availableModels.length > 0 ? (
+            <>
+              <TouchableOpacity
+                style={styles.modelSelectorButton}
+                onPress={() => !isInAnalysis && setShowModelSelector(true)}
+                disabled={isInAnalysis}
+              >
+                <Text style={styles.modelSelectorButtonText}>
+                  {state.selectedModel || 'Select model'}
+                </Text>
+                <Text style={styles.modelSelectorButtonArrow}>▼</Text>
+              </TouchableOpacity>
+              
+              {/* Model Selection Modal */}
+              <Modal
+                visible={showModelSelector}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowModelSelector(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Select AI Model</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowModelSelector(false)}
+                        style={styles.modalCloseButton}
+                      >
+                        <Text style={styles.modalCloseText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <FlatList
+                      data={state.availableModels}
+                      keyExtractor={(item) => item}
+                      renderItem={({ item: model }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.modelOption,
+                            state.selectedModel === model && styles.modelOptionSelected,
+                          ]}
+                          onPress={() => {
+                            selectModel(model);
+                            setShowModelSelector(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.modelOptionText,
+                              state.selectedModel === model && styles.modelOptionTextSelected,
+                            ]}
+                          >
+                            {model}
+                          </Text>
+                          {state.selectedModel === model && (
+                            <Text style={styles.modelOptionCheckmark}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      scrollEnabled
+                      nestedScrollEnabled
+                    />
+                  </View>
+                </View>
+              </Modal>
+            </>
+          ) : (
+            <Text style={styles.errorText}>No models available</Text>
+          )}
+        </View>
 
         {/* Platform Context */}
         <View style={[styles.section, isInAnalysis && styles.sectionDisabled]}>
@@ -763,5 +896,126 @@ const styles = StyleSheet.create({
   },
   buttonSpinner: {
     marginRight: 8,
+  },
+  pickerContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 0,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  picker: {
+    flex: 1,
+    color: '#000000',
+  },
+  errorContainer: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+  },
+  errorText: {
+    color: '#856404',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorSubtext: {
+    color: '#856404',
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  modelDisplay: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modelDisplayText: {
+    color: '#6c6c70',
+    fontSize: 14,
+  },
+  modelSelectorButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e5ea',
+  },
+  modelSelectorButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modelSelectorButtonArrow: {
+    color: '#007AFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '70%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5ea',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: '#6c6c70',
+  },
+  modelOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f2f2f7',
+  },
+  modelOptionSelected: {
+    backgroundColor: '#f0f7ff',
+  },
+  modelOptionText: {
+    fontSize: 16,
+    color: '#000000',
+  },
+  modelOptionTextSelected: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  modelOptionCheckmark: {
+    fontSize: 18,
+    color: '#34c759',
+    fontWeight: '700',
   },
 });

@@ -10,7 +10,6 @@ import type { ChatCompletionContentPart } from 'openai/resources/chat/completion
 import { EnrichmentResults } from './enrichment';
 
 const AI_TIMEOUT_MS_PHOTO = 12000;
-const AI_MODEL = 'gpt-4o';
 
 // ============================================================================
 // Types
@@ -322,6 +321,7 @@ export class AIClientError extends Error {
 /**
  * Analyze image using OpenAI vision API
  * 
+ * @param model - AI model to use (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param imageBase64 - Base64-encoded image data (without data URL prefix)
  * @param imageWidth - Image width in pixels
  * @param imageHeight - Image height in pixels
@@ -332,6 +332,7 @@ export class AIClientError extends Error {
  * @returns AI analysis result
  */
 export async function analyzeImage(
+  model: string,
   imageBase64: string,
   imageWidth: number,
   imageHeight: number,
@@ -353,7 +354,7 @@ export async function analyzeImage(
     const prompt = buildPrompt(contextPack);
 
     console.log('[AIClient] Calling OpenAI vision API', {
-      model: AI_MODEL,
+      model,
       promptLength: prompt.length,
       imageSize: { width: imageWidth, height: imageHeight }
     });
@@ -375,7 +376,7 @@ export async function analyzeImage(
 
     // Call OpenAI
     const completion = await openai.chat.completions.create({
-      model: AI_MODEL,
+      model,
       messages: [{ role: 'user', content }],
       max_tokens: 4096,
       temperature: 0.7

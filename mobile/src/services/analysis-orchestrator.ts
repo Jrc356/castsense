@@ -123,11 +123,11 @@ function handleError(error: unknown): AnalysisError {
 /**
  * Run full analysis pipeline
  * 
- * @param input - Analysis input with photo URI, location, options, and API key
+ * @param input - Analysis input with photo URI, location, options, API key, and AI model
  * @returns Analysis result with data or error
  */
-export async function runAnalysis(input: AnalysisInput): Promise<AnalysisResult> {
-  const { photoUri, location, options, apiKey, onProgress } = input;
+export async function runAnalysis(input: AnalysisInput & { model: string }): Promise<AnalysisResult> {
+  const { photoUri, location, options, apiKey, model, onProgress } = input;
   const startTime = Date.now();
 
   const timings = {
@@ -213,6 +213,7 @@ export async function runAnalysis(input: AnalysisInput): Promise<AnalysisResult>
 
     const aiStart = Date.now();
     const aiResult = await analyzeImage(
+      model,
       processedImage.base64,
       processedImage.width,
       processedImage.height,

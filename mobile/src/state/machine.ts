@@ -74,6 +74,10 @@ export interface MachineState {
   gearType: GearType;
   userConstraints: UserConstraints;
   
+  // AI Model selection
+  selectedModel: string | null;
+  availableModels: string[];
+  
   // Capture (photo only)
   captureResult: CaptureResult | null;
   
@@ -97,6 +101,8 @@ export const initialState: MachineState = {
   platformContext: null,
   gearType: 'unknown',
   userConstraints: {},
+  selectedModel: null,
+  availableModels: [],
   captureResult: null,
   analysisResult: null,
   error: null,
@@ -115,6 +121,8 @@ export type AppAction =
   | { type: 'SET_PLATFORM_CONTEXT'; payload: PlatformContext | null }
   | { type: 'SET_GEAR_TYPE'; payload: GearType }
   | { type: 'SET_USER_CONSTRAINTS'; payload: UserConstraints }
+  | { type: 'SELECT_MODEL'; payload: string }
+  | { type: 'SET_AVAILABLE_MODELS'; payload: string[] }
   | { type: 'START_CAPTURE' }
   | { type: 'COMPLETE_CAPTURE'; payload: CaptureResult }
   | { type: 'START_ANALYSIS' }
@@ -152,6 +160,16 @@ export const actions = {
   setUserConstraints: (constraints: UserConstraints): AppAction => ({
     type: 'SET_USER_CONSTRAINTS',
     payload: constraints,
+  }),
+
+  selectModel: (model: string): AppAction => ({
+    type: 'SELECT_MODEL',
+    payload: model,
+  }),
+
+  setAvailableModels: (models: string[]): AppAction => ({
+    type: 'SET_AVAILABLE_MODELS',
+    payload: models,
   }),
 
   startCapture: (): AppAction => ({
@@ -246,6 +264,18 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       return {
         ...state,
         userConstraints: action.payload,
+      };
+
+    case 'SELECT_MODEL':
+      return {
+        ...state,
+        selectedModel: action.payload,
+      };
+
+    case 'SET_AVAILABLE_MODELS':
+      return {
+        ...state,
+        availableModels: action.payload,
       };
 
     case 'START_CAPTURE':

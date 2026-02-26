@@ -11,6 +11,7 @@ import React, {
   useReducer,
   useMemo,
   useCallback,
+  useEffect,
   type ReactNode,
 } from 'react';
 
@@ -33,6 +34,8 @@ import {
   getStateProgress,
 } from './machine';
 
+import { loadSelectedModel, saveSelectedModel, getDefaultModel } from '../services/model-storage';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Context Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,6 +55,8 @@ interface AppContextValue {
   setPlatformContext: (platform: PlatformContext | null) => void;
   setGearType: (gearType: GearType) => void;
   setUserConstraints: (constraints: UserConstraints) => void;
+  selectModel: (model: string) => void;
+  setAvailableModels: (models: string[]) => void;
   startCapture: () => void;
   completeCapture: (result: CaptureResult) => void;
   startAnalysis: () => void;
@@ -115,6 +120,47 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     },
     []
   );
+
+  const selectModel = useCallback(
+    (model: string) => {
+      dispatch(actions.selectModel(model));
+      // Persist to storage
+      saveSelectedModel(model).catch((error) => {
+        console.error('Failed to save model selection:', error);
+      });
+    },
+    []
+  );
+
+  const setAvailableModels = useCallback(
+    (models: string[]) => {
+      dispatch(actions.setAvailableModels(models));
+    },
+    []
+  );
+
+  // Load persisted model selection on mount
+  useEffect(() => {
+    const loadPersistedModel = async () => {
+      try {
+        const persistedModel = await loadSelectedModel();
+        if (persistedModel) {
+          dispatch(actions.selectModel(persistedModel));
+        } else {
+          // Use default model if none saved
+          const defaultModel = getDefaultModel();
+          dispatch(actions.selectModel(defaultModel));
+        }
+      } catch (error) {
+        console.error('Failed to load persisted model:', error);
+        // Fallback to default model
+        const defaultModel = getDefaultModel();
+        dispatch(actions.selectModel(defaultModel));
+      }
+    };
+    
+    loadPersistedModel();
+  }, []);
 
   const startCapture = useCallback(() => {
     dispatch(actions.startCapture());
@@ -198,6 +244,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setPlatformContext,
       setGearType,
       setUserConstraints,
+      selectModel,
+      setAvailableModels,
       startCapture,
       completeCapture,
       startAnalysis,
@@ -219,6 +267,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setPlatformContext,
       setGearType,
       setUserConstraints,
+      selectModel,
+      setAvailableModels,
       startCapture,
       completeCapture,
       startAnalysis,
