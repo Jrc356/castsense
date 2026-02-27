@@ -65,7 +65,7 @@ export interface AIAnalysisResult {
 // Context Pack Builder
 // ============================================================================
 
-function buildContextPack(
+export function buildContextPack(
   enrichment: EnrichmentResults,
   location: { lat: number; lon: number },
   options: AnalysisOptions
@@ -190,7 +190,7 @@ ZONE REQUIREMENTS:
 - Each tactics entry must reference a valid zone_id
 `;
 
-function formatContextPack(contextPack: ContextPack): string {
+export function formatContextPack(contextPack: ContextPack): string {
   const sections: string[] = [];
 
   sections.push(`MODE: ${contextPack.mode}`);
@@ -243,7 +243,7 @@ Pressure: ${w.pressure_inhg} inHg (${w.pressure_trend})`);
   return sections.join('\n\n');
 }
 
-function getModeInstructions(contextPack: ContextPack): string {
+export function getModeInstructions(contextPack: ContextPack): string {
   if (contextPack.mode === 'specific' && contextPack.target_species) {
     return `
 MODE INSTRUCTIONS (Specific Mode):
@@ -262,7 +262,7 @@ MODE INSTRUCTIONS (General Mode):
 `;
 }
 
-function buildPrompt(contextPack: ContextPack): string {
+export function buildPrompt(contextPack: ContextPack): string {
   const formattedContext = formatContextPack(contextPack);
   const modeInstructions = getModeInstructions(contextPack);
 

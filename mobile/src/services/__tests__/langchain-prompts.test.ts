@@ -16,6 +16,10 @@ import {
   type AnalysisOptions
 } from '../langchain-prompts';
 import type { EnrichmentResults } from '../enrichment';
+import {
+  buildContextPack as buildContextPackOriginal,
+  buildPrompt as buildPromptOriginal
+} from '../ai-client';
 
 // ============================================================================
 // Test Data
@@ -28,14 +32,12 @@ const MOCK_LOCATION = {
 
 const MOCK_ENRICHMENT_FULL: EnrichmentResults = {
   reverseGeocode: {
-    success: true,
     waterbody_name: 'Lake Michigan',
     water_type: 'lake',
     admin_area: 'Illinois',
     country: 'USA'
   },
   weather: {
-    success: true,
     temperature_f: 72,
     wind_speed_mph: 8,
     wind_direction_deg: 180,
@@ -45,7 +47,6 @@ const MOCK_ENRICHMENT_FULL: EnrichmentResults = {
     precip_24h_in: 0.0
   },
   solar: {
-    success: true,
     season: 'summer',
     sunrise_local: '05:45',
     sunset_local: '20:30',
@@ -55,18 +56,13 @@ const MOCK_ENRICHMENT_FULL: EnrichmentResults = {
 
 const MOCK_ENRICHMENT_PARTIAL: EnrichmentResults = {
   reverseGeocode: {
-    success: true,
     waterbody_name: 'Unknown Lake',
     water_type: 'unknown',
     admin_area: null,
     country: null
   },
-  weather: {
-    success: false
-  },
-  solar: {
-    success: false
-  }
+  weather: null,
+  solar: null
 };
 
 const MOCK_OPTIONS_GENERAL: AnalysisOptions = {
@@ -154,9 +150,9 @@ describe('buildContextPack', () => {
 
   it('should handle empty enrichment', () => {
     const emptyEnrichment: EnrichmentResults = {
-      reverseGeocode: { success: false },
-      weather: { success: false },
-      solar: { success: false }
+      reverseGeocode: null,
+      weather: null,
+      solar: null
     };
 
     const contextPack = buildContextPack(
@@ -204,32 +200,35 @@ describe('buildPromptVariables', () => {
 
     const variables = buildPromptVariables(contextPack);
 
-    expect(variables.mode).toBe('MODE: general');
-    expect(variables.target_species).toBe('');
-    expect(variables.user_context).toBe('');
+    // Should have formatted_context with all sections joined by \n\n
+    expect(variables.formatted_context).toContain('MODE: general');
+    expect(variables.formatted_context).not.toContain('TARGET SPECIES:');
     
-    expect(variables.location).toContain('LOCATION:');
-    expect(variables.location).toContain('Coordinates: 41.8781, -87.6298');
-    expect(variables.location).toContain('Waterbody: Lake Michigan');
-    expect(variables.location).toContain('Type: lake');
-    expect(variables.location).toContain('Area: Illinois');
-    expect(variables.location).toContain('Country: USA');
+    expect(variables.formatted_context).toContain('LOCATION:');
+    expect(variables.formatted_context).toContain('Coordinates: 41.8781, -87.6298');
+    expect(variables.formatted_context).toContain('Waterbody: Lake Michigan');
+    expect(variables.formatted_context).toContain('Type: lake');
+    expect(variables.formatted_context).toContain('Area: Illinois');
+    expect(variables.formatted_context).toContain('Country: USA');
 
-    expect(variables.time).toContain('TIME:');
-    expect(variables.time).toContain('Local time:');
-    expect(variables.time).toContain('Season: summer');
-    expect(variables.time).toContain('Sunrise: 05:45, Sunset: 20:30');
-    expect(variables.time).toContain('Daylight phase: afternoon');
+    expect(variables.formatted_context).toContain('TIME:');
+    expect(variables.formatted_context).toContain('Local time:');
+    expect(variables.formatted_context).toContain('Season: summer');
+    expect(variables.formatted_context).toContain('Sunrise: 05:45, Sunset: 20:30');
+    expect(variables.formatted_context).toContain('Daylight phase: afternoon');
 
-    expect(variables.weather).toContain('WEATHER:');
-    expect(variables.weather).toContain('Air temp: 72°F');
-    expect(variables.weather).toContain('Wind: 8 mph at 180°');
-    expect(variables.weather).toContain('Cloud cover: 25%');
-    expect(variables.weather).toContain('Precipitation (24h): 0 in');
-    expect(variables.weather).toContain('Pressure: 30.1 inHg (rising)');
+    expect(variables.formatted_context).toContain('WEATHER:');
+    expect(variables.formatted_context).toContain('Air temp: 72°F');
+    expect(variables.formatted_context).toContain('Wind: 8 mph at 180°');
+    expect(variables.formatted_context).toContain('Cloud cover: 25%');
+    expect(variables.formatted_context).toContain('Precipitation (24h): 0 in');
+    expect(variables.formatted_context).toContain('Pressure: 30.1 inHg (rising)');
 
     expect(variables.mode_instructions).toContain('General Mode');
     expect(variables.mode_instructions).toContain('likely_species array');
+    
+    // Verify sections are separated by double newlines
+    expect(variables.formatted_context).toMatch(/MODE: general\n\nLOCATION:/);
   });
 
   it('should format specific mode with target species', () => {
@@ -241,12 +240,12 @@ describe('buildPromptVariables', () => {
 
     const variables = buildPromptVariables(contextPack);
 
-    expect(variables.mode).toContain('MODE: specific');
-    expect(variables.mode).toContain('TARGET SPECIES: Largemouth Bass');
+    expect(variables.formatted_context).toContain('MODE: specific');
+    expect(variables.formatted_context).toContain('TARGET SPECIES: Largemouth Bass');
     
-    expect(variables.user_context).toContain('USER CONTEXT:');
-    expect(variables.user_context).toContain('Platform: kayak');
-    expect(variables.user_context).toContain('Gear: spinning');
+    expect(variables.formatted_context).toContain('USER CONTEXT:');
+    expect(variables.formatted_context).toContain('Platform: kayak');
+    expect(variables.formatted_context).toContain('Gear: spinning');
 
     expect(variables.mode_instructions).toContain('Specific Mode');
     expect(variables.mode_instructions).toContain('Largemouth Bass');
@@ -260,12 +259,8 @@ describe('buildPromptVariables', () => {
 
     const variables = buildPromptVariables(minimalContextPack);
 
-    expect(variables.mode).toBe('MODE: general');
-    expect(variables.target_species).toBe('');
-    expect(variables.user_context).toBe('');
-    expect(variables.location).toBe('');
-    expect(variables.time).toBe('');
-    expect(variables.weather).toBe('');
+    // Should only have MODE section, nothing else
+    expect(variables.formatted_context).toBe('MODE: general');
     expect(variables.mode_instructions).toContain('General Mode');
   });
 
@@ -278,9 +273,9 @@ describe('buildPromptVariables', () => {
 
     const variables = buildPromptVariables(contextPack);
 
-    expect(variables.location).toContain('LOCATION:');
-    expect(variables.location).toContain('Waterbody: Unknown Lake');
-    expect(variables.location).not.toContain('Type: unknown');
+    expect(variables.formatted_context).toContain('LOCATION:');
+    expect(variables.formatted_context).toContain('Waterbody: Unknown Lake');
+    expect(variables.formatted_context).not.toContain('Type: unknown');
   });
 });
 
@@ -462,11 +457,7 @@ describe('getPromptTemplate', () => {
     const template = getPromptTemplate();
     const inputVars = template.inputVariables;
 
-    expect(inputVars).toContain('mode');
-    expect(inputVars).toContain('user_context');
-    expect(inputVars).toContain('location');
-    expect(inputVars).toContain('time');
-    expect(inputVars).toContain('weather');
+    expect(inputVars).toContain('formatted_context');
     expect(inputVars).toContain('mode_instructions');
   });
 });
@@ -491,14 +482,13 @@ describe('Edge Cases', () => {
     const variables = buildPromptVariables(contextPack);
     
     // Should be formatted to 4 decimal places
-    expect(variables.location).toContain('41.8781, -87.6298');
+    expect(variables.formatted_context).toContain('41.8781, -87.6298');
   });
 
   it('should handle zero values in weather data', () => {
     const zeroWeatherEnrichment: EnrichmentResults = {
       ...MOCK_ENRICHMENT_FULL,
       weather: {
-        success: true,
         temperature_f: 0,
         wind_speed_mph: 0,
         wind_direction_deg: 0,
@@ -517,9 +507,9 @@ describe('Edge Cases', () => {
 
     const variables = buildPromptVariables(contextPack);
     
-    expect(variables.weather).toContain('Air temp: 0°F');
-    expect(variables.weather).toContain('Wind: 0 mph at 0°');
-    expect(variables.weather).toContain('Cloud cover: 0%');
+    expect(variables.formatted_context).toContain('Air temp: 0°F');
+    expect(variables.formatted_context).toContain('Wind: 0 mph at 0°');
+    expect(variables.formatted_context).toContain('Cloud cover: 0%');
   });
 
   it('should handle empty strings in optional fields', () => {
@@ -536,18 +526,19 @@ describe('Edge Cases', () => {
       emptyStringsOptions
     );
 
-    expect(contextPack.target_species).toBe('');
+    // Empty string should be converted to null by || operator
+    expect(contextPack.target_species).toBeNull();
     
     const variables = buildPromptVariables(contextPack);
-    expect(variables.mode).toBe('MODE: specific');
-    expect(variables.target_species).toBe('');
+    expect(variables.formatted_context).toContain('MODE: specific');
+    // Should not include TARGET SPECIES section since it's null
+    expect(variables.formatted_context).not.toContain('TARGET SPECIES:');
   });
 
   it('should handle very long waterbody names', () => {
     const longNameEnrichment: EnrichmentResults = {
       ...MOCK_ENRICHMENT_FULL,
       reverseGeocode: {
-        success: true,
         waterbody_name: 'Lake of the Woods International Wilderness Area Reservoir System',
         water_type: 'lake',
         admin_area: 'Minnesota',
@@ -563,6 +554,140 @@ describe('Edge Cases', () => {
 
     const variables = buildPromptVariables(contextPack);
     
-    expect(variables.location).toContain('Waterbody: Lake of the Woods International Wilderness Area Reservoir System');
+    expect(variables.formatted_context).toContain('Waterbody: Lake of the Woods International Wilderness Area Reservoir System');
   });
 });
+
+// ============================================================================
+// True Regression Tests (Compare with Original Implementation)
+// ============================================================================
+
+describe('True Regression: Output Matching Original Implementation', () => {
+  it('should produce identical output to original buildPrompt for general mode', async () => {
+    // Build context pack using NEW implementation
+    const contextPackNew = buildContextPack(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Build context pack using ORIGINAL implementation
+    const contextPackOriginal = buildContextPackOriginal(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Generate prompts
+    const newPrompt = await formatAnalysisPrompt(contextPackNew);
+    const originalPrompt = buildPromptOriginal(contextPackOriginal);
+
+    // Compare outputs - should be identical
+    expect(newPrompt).toBe(originalPrompt);
+  });
+
+  it('should produce identical output to original buildPrompt for specific mode', async () => {
+    // Build context pack using NEW implementation
+    const contextPackNew = buildContextPack(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_SPECIFIC
+    );
+
+    // Build context pack using ORIGINAL implementation
+    const contextPackOriginal = buildContextPackOriginal(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_SPECIFIC
+    );
+
+    // Generate prompts
+    const newPrompt = await formatAnalysisPrompt(contextPackNew);
+    const originalPrompt = buildPromptOriginal(contextPackOriginal);
+
+    // Compare outputs - should be identical
+    expect(newPrompt).toBe(originalPrompt);
+  });
+
+  it('should produce identical output with partial enrichment data', async () => {
+    // Build context pack using NEW implementation
+    const contextPackNew = buildContextPack(
+      MOCK_ENRICHMENT_PARTIAL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Build context pack using ORIGINAL implementation
+    const contextPackOriginal = buildContextPackOriginal(
+      MOCK_ENRICHMENT_PARTIAL,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Generate prompts
+    const newPrompt = await formatAnalysisPrompt(contextPackNew);
+    const originalPrompt = buildPromptOriginal(contextPackOriginal);
+
+    // Compare outputs - should be identical
+    expect(newPrompt).toBe(originalPrompt);
+  });
+
+  it('should produce identical output with empty enrichment', async () => {
+    const emptyEnrichment: EnrichmentResults = {
+      reverseGeocode: null,
+      weather: null,
+      solar: null
+    };
+
+    // Build context pack using NEW implementation
+    const contextPackNew = buildContextPack(
+      emptyEnrichment,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Build context pack using ORIGINAL implementation
+    const contextPackOriginal = buildContextPackOriginal(
+      emptyEnrichment,
+      MOCK_LOCATION,
+      MOCK_OPTIONS_GENERAL
+    );
+
+    // Generate prompts
+    const newPrompt = await formatAnalysisPrompt(contextPackNew);
+    const originalPrompt = buildPromptOriginal(contextPackOriginal);
+
+    // Compare outputs - should be identical
+    expect(newPrompt).toBe(originalPrompt);
+  });
+
+  it('should produce identical output with empty target species string', async () => {
+    const optionsEmptySpecies: AnalysisOptions = {
+      mode: 'specific',
+      targetSpecies: '',
+      platform: 'shore'
+    };
+
+    // Build context pack using NEW implementation
+    const contextPackNew = buildContextPack(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      optionsEmptySpecies
+    );
+
+    // Build context pack using ORIGINAL implementation
+    const contextPackOriginal = buildContextPackOriginal(
+      MOCK_ENRICHMENT_FULL,
+      MOCK_LOCATION,
+      optionsEmptySpecies
+    );
+
+    // Generate prompts
+    const newPrompt = await formatAnalysisPrompt(contextPackNew);
+    const originalPrompt = buildPromptOriginal(contextPackOriginal);
+
+    // Compare outputs - should be identical
+    expect(newPrompt).toBe(originalPrompt);
+  });
+});
+

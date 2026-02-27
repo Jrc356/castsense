@@ -53,12 +53,7 @@ export interface AnalysisOptions {
 }
 
 export interface PromptVariables {
-  mode: string;
-  target_species: string;
-  user_context: string;
-  location: string;
-  time: string;
-  weather: string;
+  formatted_context: string;
   mode_instructions: string;
 }
 
@@ -77,11 +72,11 @@ export function buildContextPack(
 ): ContextPack {
   const contextPack: ContextPack = {
     mode: options.mode,
-    target_species: options.targetSpecies !== undefined ? options.targetSpecies : null
+    target_species: options.targetSpecies || null
   };
 
-  // Location - only include if reverseGeocode was successful
-  if (enrichment.reverseGeocode && enrichment.reverseGeocode.success) {
+  // Location
+  if (enrichment.reverseGeocode) {
     contextPack.location = {
       lat: location.lat,
       lon: location.lon,
@@ -92,8 +87,8 @@ export function buildContextPack(
     };
   }
 
-  // Time - only include if solar was successful
-  if (enrichment.solar && enrichment.solar.success) {
+  // Time
+  if (enrichment.solar) {
     const now = new Date();
     const formatter = new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
@@ -110,8 +105,8 @@ export function buildContextPack(
     };
   }
 
-  // Weather - only include if weather was successful
-  if (enrichment.weather && enrichment.weather.success) {
+  // Weather
+  if (enrichment.weather) {
     contextPack.weather = {
       air_temp_f: enrichment.weather.temperature_f,
       wind_speed_mph: enrichment.weather.wind_speed_mph,
@@ -140,7 +135,7 @@ export function buildContextPack(
 
 const RESULT_SCHEMA = `{{
   "mode": "general" | "specific",
-  "likely_species": [{{"species": "string", "confidence": number (0-1)}}],
+  "likely_species": [{{ "species": "string", "confidence": number (0-1) }}],
   "analysis_frame": {{
     "type": "photo",
     "width_px": number,
@@ -203,11 +198,11 @@ ZONE REQUIREMENTS:
  * Format mode and target species information for the template.
  */
 function formatModeSection(contextPack: ContextPack): string {
-  let result = `MODE: ${contextPack.mode}`;
+  const parts: string[] = [`MODE: ${contextPack.mode}`];
   if (contextPack.target_species) {
-    result += `\nTARGET SPECIES: ${contextPack.target_species}`;
+    parts.push(`TARGET SPECIES: ${contextPack.target_species}`);
   }
-  return result;
+  return parts.join('\n\n');
 }
 
 /**
@@ -289,17 +284,21 @@ Pressure: ${w.pressure_inhg} inHg (${w.pressure_trend})`;
  */
 function formatModeInstructions(contextPack: ContextPack): string {
   if (contextPack.mode === 'specific' && contextPack.target_species) {
-    return `MODE INSTRUCTIONS (Specific Mode):
+    return `
+MODE INSTRUCTIONS (Specific Mode):
 - The user is targeting ${contextPack.target_species} specifically
 - All tactics should be optimized for ${contextPack.target_species}
 - Zone target_species should be "${contextPack.target_species}"
-- likely_species array should include ${contextPack.target_species} with high confidence`;
+- likely_species array should include ${contextPack.target_species} with high confidence
+`;
   }
 
-  return `MODE INSTRUCTIONS (General Mode):
+  return `
+MODE INSTRUCTIONS (General Mode):
 - Analyze the scene and identify likely species based on water type, structure, and conditions
 - Include likely_species array with confidence scores
-- Each zone can target the species most likely for that specific area`;
+- Each zone can target the species most likely for that specific area
+`;
 }
 
 // ============================================================================
@@ -318,15 +317,7 @@ const CASTSENSE_PROMPT_TEMPLATE = ChatPromptTemplate.fromMessages([
 TASK:
 Analyze the provided photo and generate overlay-ready fishing recommendations.
 
-{mode}
-
-{user_context}
-
-{location}
-
-{time}
-
-{weather}
+{formatted_context}
 
 {mode_instructions}
 
@@ -368,13 +359,33 @@ Remember: Return ONLY the JSON object, no additional text.`
  * Converts structured ContextPack into template variables.
  */
 export function buildPromptVariables(contextPack: ContextPack): PromptVariables {
+  // Build sections array, filtering out empty sections
+  const sections: string[] = [];
+  
+  // Mode section (always present)
+  sections.push(formatModeSection(contextPack));
+  
+  // User context (optional)
+  const userContext = formatUserContext(contextPack);
+  if (userContext) sections.push(userContext);
+  
+  // Location (optional)
+  const location = formatLocation(contextPack);
+  if (location) sections.push(location);
+  
+  // Time (optional)
+  const time = formatTime(contextPack);
+  if (time) sections.push(time);
+  
+  // Weather (optional)
+  const weather = formatWeather(contextPack);
+  if (weather) sections.push(weather);
+  
+  // Join all non-empty sections with double newlines
+  const formatted_context = sections.join('\n\n');
+  
   return {
-    mode: formatModeSection(contextPack),
-    target_species: contextPack.target_species || '',
-    user_context: formatUserContext(contextPack),
-    location: formatLocation(contextPack),
-    time: formatTime(contextPack),
-    weather: formatWeather(contextPack),
+    formatted_context,
     mode_instructions: formatModeInstructions(contextPack)
   };
 }
