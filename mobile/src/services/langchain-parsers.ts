@@ -244,6 +244,26 @@ function extractJSON(rawResponse: string): string | null {
 }
 
 // ============================================================================
+// Zod Error Formatting
+// ============================================================================
+
+/**
+ * Convert Zod validation errors to ValidationError format
+ */
+function formatZodErrors(zodError: z.ZodError): ValidationError[] {
+  return zodError.issues.map(issue => ({
+    type: 'schema' as const,
+    message: issue.message,
+    path: issue.path.join('.'),
+    details: {
+      code: issue.code,
+      expected: 'expected' in issue ? issue.expected : undefined,
+      received: 'received' in issue ? issue.received : undefined
+    }
+  }));
+}
+
+// ============================================================================
 // Custom Geometry Validation (preserved from validation.ts)
 // ============================================================================
 
@@ -344,6 +364,7 @@ function validateGeometry(result: CastSenseResult): ValidationError[] {
  * 
  * This is the main validation function that replaces `validateAIResult` from
  * validation.ts. It uses Zod schema validation via LangChain instead of AJV.
+ * Includes error recovery: if structured parser fails, tries manual JSON extraction + Zod validation.
  * 
  * @param rawResponse - Raw string response from AI model
  * @returns ValidationResult with parsed data and errors (compatible with existing code)
@@ -372,22 +393,45 @@ export async function parseAIResult(rawResponse: string): Promise<ValidationResu
     };
   }
 
-  // Step 2: Parse with LangChain StructuredOutputParser
+  // Step 2: Try LangChain StructuredOutputParser first
   const p = getParser();
   let parsed: CastSenseResult;
 
   try {
     parsed = await p.parse(jsonString) as CastSenseResult;
-  } catch (error) {
-    // LangChain parser throws on validation failure
-    return {
-      valid: false,
-      errors: [{
-        type: 'schema',
-        message: error instanceof Error ? error.message : 'Schema validation failed',
-        details: error
-      }]
-    };
+  } catch (parseError) {
+    // Error recovery: try fallback to manual JSON parsing + Zod validation
+    console.warn('[LangChain Parser] Structured parse failed, trying fallback', parseError);
+    
+    // Parse JSON manually
+    let jsonData: unknown;
+    try {
+      jsonData = JSON.parse(jsonString);
+    } catch (jsonError) {
+      console.error('[LangChain Parser] Both structured and manual JSON parse failed');
+      return {
+        valid: false,
+        errors: [{
+          type: 'parse',
+          message: `JSON parse error: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`,
+          details: { structuredError: parseError, jsonError }
+        }]
+      };
+    }
+
+    // Validate with Zod schema directly
+    const zodResult = CastSenseResultSchema.safeParse(jsonData);
+    if (!zodResult.success) {
+      console.error('[LangChain Parser] Both structured and fallback validation failed');
+      return {
+        valid: false,
+        errors: formatZodErrors(zodResult.error)
+      };
+    }
+
+    // Fallback succeeded
+    console.log('[LangChain Parser] Fallback validation succeeded');
+    parsed = zodResult.data;
   }
 
   // Step 3: Custom geometry validation
@@ -406,7 +450,7 @@ export async function parseAIResult(rawResponse: string): Promise<ValidationResu
  * 
  * NOTE: LangChain's parser is async, but we can make it appear synchronous
  * for simple cases. This is provided for drop-in replacement of the old
- * validateAIResult function.
+ * validateAIResult function. Includes error recovery with manual JSON parsing.
  * 
  * @param rawResponse - Raw string response from AI model
  * @returns ValidationResult (throws if async parsing is required)
@@ -444,21 +488,10 @@ export function parseAIResultSync(rawResponse: string): ValidationResult {
   const result = CastSenseResultSchema.safeParse(jsonData);
   
   if (!result.success) {
-    // Convert Zod errors to ValidationError format
-    const zodErrors = result.error.issues.map(issue => ({
-      type: 'schema' as const,
-      message: issue.message,
-      path: issue.path.join('.'),
-      details: {
-        code: issue.code,
-        expected: 'expected' in issue ? issue.expected : undefined,
-        received: 'received' in issue ? issue.received : undefined
-      }
-    }));
-    
+    // Convert Zod errors using helper
     return {
       valid: false,
-      errors: zodErrors
+      errors: formatZodErrors(result.error)
     };
   }
 

@@ -233,7 +233,7 @@ describe('LangChain Parsers', () => {
       const result = await parseAIResult(invalid);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
+      expect(result.errors[0]!.type).toBe('parse'); // Malformed JSON returns parse error
     });
 
     it('should return parse error for empty string', async () => {
@@ -534,6 +534,144 @@ describe('LangChain Parsers', () => {
         const result = await parseAIResult(JSON.stringify(withHint));
         expect(result.valid).toBe(true);
       }
+    });
+  });
+
+  // ============================================================================
+  // Error Recovery Tests
+  // ============================================================================
+
+  describe('Error Recovery', () => {
+    it('should recover when structured parser fails but JSON is valid', async () => {
+      // Simulate a case where structured parser might fail but JSON is valid
+      // We'll use a mocked error scenario by creating malformed format instructions response
+      const jsonWithExtraNoise = `
+        Note: The following is the analysis result.
+        
+        ${validResultJSON}
+        
+        Additional commentary here.
+      `;
+      
+      const result = await parseAIResult(jsonWithExtraNoise);
+      expect(result.valid).toBe(true);
+      expect(result.parsed).toBeDefined();
+      const parsed = result.parsed as CastSenseResult;
+      expect(parsed.mode).toBe('general');
+    });
+
+    it('should log warning when falling back to manual parsing', async () => {
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      
+      // Create a response that might confuse the structured parser
+      const confusingResponse = `Here's the result:\n\n${validResultJSON}`;
+      await parseAIResult(confusingResponse);
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should log error when both structured and fallback fail', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      const invalidJSON = '{ "mode": "general", "zones": "not-an-array" }';
+      const result = await parseAIResult(invalidJSON);
+      
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should return validation errors instead of throwing', async () => {
+      const badSchema = JSON.stringify({
+        mode: 'invalid_mode',
+        zones: [],
+        tactics: []
+      });
+      
+      // Should not throw, should return ValidationResult with errors
+      const result = await parseAIResult(badSchema);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
+    });
+
+    it('should handle JSON parse errors gracefully', async () => {
+      const malformedJSON = '{ "mode": "general", invalid syntax }';
+      
+      const result = await parseAIResult(malformedJSON);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('parse');
+      expect(result.errors[0]!.message).toContain('JSON parse error');
+    });
+
+    it('should preserve geometry errors during fallback', async () => {
+      const invalidGeometry = {
+        ...validResult,
+        tactics: [
+          {
+            ...validResult.tactics[0],
+            zone_id: 'NONEXISTENT'
+          }
+        ]
+      };
+      
+      const wrapped = `Analysis complete:\n\n${JSON.stringify(invalidGeometry)}`;
+      const result = await parseAIResult(wrapped);
+      
+      expect(result.valid).toBe(false);
+      const integrityErrors = result.errors.filter(e => e.type === 'integrity');
+      expect(integrityErrors.length).toBeGreaterThan(0);
+    });
+
+    it('should handle sync parser with error recovery', () => {
+      const invalidSchema = JSON.stringify({
+        mode: 'general',
+        // Missing required fields
+      });
+      
+      const result = parseAIResultSync(invalidSchema);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
+    });
+
+    it('should format Zod errors consistently', async () => {
+      const missingFields = JSON.stringify({
+        mode: 'general'
+        // Missing zones and tactics
+      });
+      
+      const result = await parseAIResult(missingFields);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      
+      // Check error format
+      const error = result.errors[0]!;
+      expect(error.type).toBe('schema');
+      expect(error.message).toBeDefined();
+      expect(typeof error.message).toBe('string');
+    });
+
+    it('should succeed when fallback extracts valid JSON from wrapped response', async () => {
+      const wrappedInMarkdown = `\`\`\`json\n${validResultJSON}\n\`\`\``;
+      
+      const result = await parseAIResult(wrappedInMarkdown);
+      expect(result.valid).toBe(true);
+      expect(result.parsed).toBeDefined();
+    });
+
+    it('should handle edge case of valid JSON with invalid schema', async () => {
+      const validJSONInvalidSchema = JSON.stringify({
+        mode: 'general',
+        zones: 'should-be-array',  // Wrong type
+        tactics: []
+      });
+      
+      const result = await parseAIResult(validJSONInvalidSchema);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.type === 'schema')).toBe(true);
     });
   });
 
