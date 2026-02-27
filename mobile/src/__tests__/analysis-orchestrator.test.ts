@@ -23,18 +23,15 @@ import { runAnalysis } from '../services/analysis-orchestrator';
 import * as imageProcessor from '../services/image-processor';
 import * as enrichment from '../services/enrichment';
 import * as langchainChain from '../services/langchain-chain';
-import * as validation from '../services/validation';
 
 // Mock all dependencies
 jest.mock('../services/image-processor');
 jest.mock('../services/enrichment');
 jest.mock('../services/langchain-chain');
-jest.mock('../services/validation');
 
 const mockProcessImage = imageProcessor.processImage as jest.MockedFunction<typeof imageProcessor.processImage>;
 const mockEnrichMetadata = enrichment.enrichMetadata as jest.MockedFunction<typeof enrichment.enrichMetadata>;
 const mockAnalyzeWithLangChain = langchainChain.analyzeWithLangChain as jest.MockedFunction<typeof langchainChain.analyzeWithLangChain>;
-const mockValidateAIResult = validation.validateAIResult as jest.MockedFunction<typeof validation.validateAIResult>;
 
 describe('Analysis Orchestrator', () => {
   const mockPhotoUri = 'file:///test/photo.jpg';
@@ -120,11 +117,7 @@ describe('Analysis Orchestrator', () => {
     // Setup default mocks
     mockProcessImage.mockResolvedValue(mockProcessedImage);
     mockEnrichMetadata.mockResolvedValue(mockEnrichmentResults);
-    mockValidateAIResult.mockReturnValue({
-      valid: true,
-      errors: [],
-      parsed: mockCastSenseResult
-    });
+    // Note: LangChain handles validation internally, no separate validation step needed
   });
 
   describe('Successful Analysis (LangChain)', () => {

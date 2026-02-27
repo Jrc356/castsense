@@ -7,7 +7,23 @@
 
 import { z } from 'zod';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
-import type { ValidationError, ValidationResult } from './validation';
+
+// ============================================================================
+// Validation Types (formerly from validation.ts)
+// ============================================================================
+
+export interface ValidationError {
+  type: 'parse' | 'schema' | 'geometry' | 'integrity';
+  message: string;
+  path?: string;
+  details?: unknown;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  parsed?: unknown;
+}
 
 // ============================================================================
 // Zod Schema (converted from result.schema.json)
@@ -531,6 +547,8 @@ export function hasValidStructure(result: unknown): boolean {
 // ============================================================================
 
 /**
- * Re-export types from validation.ts for convenience
+ * All exports are defined inline above.
+ * Types: ValidationError, ValidationResult
+ * Functions: validateCastSenseResult, parseCastSenseResult, getCastSenseParser
+ * Schemas: All Zod schemas for CastSense result structure
  */
-export type { ValidationError, ValidationResult } from './validation';

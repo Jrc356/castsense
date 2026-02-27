@@ -22,9 +22,9 @@ import {
 } from './langchain-prompts';
 import { 
   parseAIResult,
-  type CastSenseResult 
+  type CastSenseResult,
+  type ValidationResult
 } from './langchain-parsers';
-import type { ValidationResult } from './validation';
 import type { EnrichmentResults } from './enrichment';
 import { 
   getConversationHistory, 
