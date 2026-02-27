@@ -12,7 +12,7 @@
  */
 
 import { HumanMessage } from '@langchain/core/messages';
-import type { AIMessageChunk } from '@langchain/core/messages';
+import type { AIMessageChunk, BaseMessage } from '@langchain/core/messages';
 import { createChatModel } from '../config/langchain';
 import { 
   buildContextPack, 
@@ -26,6 +26,10 @@ import {
 } from './langchain-parsers';
 import type { ValidationResult } from './validation';
 import type { EnrichmentResults } from './enrichment';
+import { 
+  getConversationHistory, 
+  addToMemory 
+} from './langchain-memory';
 
 // ============================================================================
 // Types
@@ -88,6 +92,9 @@ export interface AnalysisRequest {
   
   /** User's OpenAI API key (BYO-API-key model) */
   apiKey: string;
+  
+  /** Optional session ID for conversation memory (enables follow-up queries) */
+  sessionId?: string;
 }
 
 /**
@@ -287,7 +294,8 @@ export async function analyzeWithLangChain(
     enrichment,
     location,
     options,
-    apiKey
+    apiKey,
+    sessionId
   } = request;
 
   try {
@@ -295,7 +303,8 @@ export async function analyzeWithLangChain(
       model: modelName,
       mode: options.mode,
       targetSpecies: options.targetSpecies,
-      imageSize: { width: imageWidth, height: imageHeight }
+      imageSize: { width: imageWidth, height: imageHeight },
+      hasSessionId: !!sessionId
     });
 
     // =========================================================================
@@ -304,10 +313,23 @@ export async function analyzeWithLangChain(
     const chatModel = createChatModel(apiKey, modelName);
 
     // =========================================================================
-    // Step 2: Build context pack and format prompt
+    // Step 2: Load conversation history (if session provided)
+    // =========================================================================
+    let conversationHistory: BaseMessage[] | undefined;
+    
+    if (sessionId) {
+      conversationHistory = await getConversationHistory(sessionId);
+      console.log('[LangChain Chain] Loaded conversation history', {
+        sessionId,
+        messageCount: conversationHistory.length
+      });
+    }
+
+    // =========================================================================
+    // Step 3: Build context pack and format prompt (with history)
     // =========================================================================
     const contextPack: ContextPack = buildContextPack(enrichment, location, options);
-    const promptText = await formatAnalysisPrompt(contextPack);
+    const promptText = await formatAnalysisPrompt(contextPack, conversationHistory);
 
     console.log('[LangChain Chain] Prompt formatted', {
       promptLength: promptText.length,
@@ -395,6 +417,18 @@ export async function analyzeWithLangChain(
       tactics: parsedData.tactics.length,
       hasErrors: validationResult.errors.length > 0
     });
+
+    // =========================================================================
+    // Step 7: Store in conversation memory (if session provided)
+    // =========================================================================
+    if (sessionId) {
+      await addToMemory(
+        sessionId,
+        promptText, // Store the full prompt as user message
+        parsedData
+      );
+      console.log('[LangChain Chain] Stored result in memory for session:', sessionId);
+    }
 
     // =========================================================================
     // Return success result

@@ -156,9 +156,10 @@ describe('State Machine', () => {
           total_ms: 650,
         },
       };
-      state = appReducer(state, actions.receiveResults(mockResult));
+      state = appReducer(state, actions.receiveResults(mockResult, 'test-session-123'));
       expect(state.state).toBe('Results');
       expect(state.analysisResult).toEqual(mockResult);
+      expect(state.sessionId).toBe('test-session-123');
       expect(state.aiProgress).toBe(1);
     });
   });

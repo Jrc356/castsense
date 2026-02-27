@@ -17,10 +17,6 @@ import {
   type AnalysisOptions
 } from '../langchain-prompts';
 import type { EnrichmentResults } from '../enrichment';
-import {
-  buildContextPack as buildContextPackOriginal,
-  buildPrompt as buildPromptOriginal
-} from '../ai-client';
 
 // ============================================================================
 // Test Data
@@ -560,137 +556,13 @@ describe('Edge Cases', () => {
 });
 
 // ============================================================================
-// True Regression Tests (Compare with Original Implementation)
+// Regression tests removed: ai-client.ts has been deprecated
 // ============================================================================
-
-describe('True Regression: Output Matching Original Implementation', () => {
-  it('should produce identical output to original buildPrompt for general mode', async () => {
-    // Build context pack using NEW implementation
-    const contextPackNew = buildContextPack(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Build context pack using ORIGINAL implementation
-    const contextPackOriginal = buildContextPackOriginal(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Generate prompts
-    const newPrompt = await formatAnalysisPrompt(contextPackNew);
-    const originalPrompt = buildPromptOriginal(contextPackOriginal);
-
-    // Compare outputs - should be identical
-    expect(newPrompt).toBe(originalPrompt);
-  });
-
-  it('should produce identical output to original buildPrompt for specific mode', async () => {
-    // Build context pack using NEW implementation
-    const contextPackNew = buildContextPack(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_SPECIFIC
-    );
-
-    // Build context pack using ORIGINAL implementation
-    const contextPackOriginal = buildContextPackOriginal(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_SPECIFIC
-    );
-
-    // Generate prompts
-    const newPrompt = await formatAnalysisPrompt(contextPackNew);
-    const originalPrompt = buildPromptOriginal(contextPackOriginal);
-
-    // Compare outputs - should be identical
-    expect(newPrompt).toBe(originalPrompt);
-  });
-
-  it('should produce identical output with partial enrichment data', async () => {
-    // Build context pack using NEW implementation
-    const contextPackNew = buildContextPack(
-      MOCK_ENRICHMENT_PARTIAL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Build context pack using ORIGINAL implementation
-    const contextPackOriginal = buildContextPackOriginal(
-      MOCK_ENRICHMENT_PARTIAL,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Generate prompts
-    const newPrompt = await formatAnalysisPrompt(contextPackNew);
-    const originalPrompt = buildPromptOriginal(contextPackOriginal);
-
-    // Compare outputs - should be identical
-    expect(newPrompt).toBe(originalPrompt);
-  });
-
-  it('should produce identical output with empty enrichment', async () => {
-    const emptyEnrichment: EnrichmentResults = {
-      reverseGeocode: null,
-      weather: null,
-      solar: null
-    };
-
-    // Build context pack using NEW implementation
-    const contextPackNew = buildContextPack(
-      emptyEnrichment,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Build context pack using ORIGINAL implementation
-    const contextPackOriginal = buildContextPackOriginal(
-      emptyEnrichment,
-      MOCK_LOCATION,
-      MOCK_OPTIONS_GENERAL
-    );
-
-    // Generate prompts
-    const newPrompt = await formatAnalysisPrompt(contextPackNew);
-    const originalPrompt = buildPromptOriginal(contextPackOriginal);
-
-    // Compare outputs - should be identical
-    expect(newPrompt).toBe(originalPrompt);
-  });
-
-  it('should produce identical output with empty target species string', async () => {
-    const optionsEmptySpecies: AnalysisOptions = {
-      mode: 'specific',
-      targetSpecies: '',
-      platform: 'shore'
-    };
-
-    // Build context pack using NEW implementation
-    const contextPackNew = buildContextPack(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      optionsEmptySpecies
-    );
-
-    // Build context pack using ORIGINAL implementation
-    const contextPackOriginal = buildContextPackOriginal(
-      MOCK_ENRICHMENT_FULL,
-      MOCK_LOCATION,
-      optionsEmptySpecies
-    );
-
-    // Generate prompts
-    const newPrompt = await formatAnalysisPrompt(contextPackNew);
-    const originalPrompt = buildPromptOriginal(contextPackOriginal);
-
-    // Compare outputs - should be identical
-    expect(newPrompt).toBe(originalPrompt);
-  });
-});
+// 
+// The LangChain implementation was validated against ai-client during migration
+// and is now the single source of truth. The regression tests that compared
+// LangChain output to ai-client output have been removed since ai-client.ts
+// no longer exists in the codebase.
 
 // ============================================================================
 // Prompt Versioning Tests

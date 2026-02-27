@@ -6,6 +6,7 @@
  */
 
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { HumanMessage, AIMessage, type BaseMessage } from '@langchain/core/messages';
 import { EnrichmentResults } from './enrichment';
 
 // ============================================================================
@@ -410,24 +411,64 @@ export function buildPromptVariables(contextPack: ContextPack): PromptVariables 
 }
 
 /**
+ * Format conversation history for inclusion in prompt.
+ * 
+ * Converts BaseMessage[] to human-readable format for context.
+ * Truncates AI responses to avoid excessive token usage.
+ * 
+ * @param history - Array of HumanMessage and AIMessage
+ * @returns Formatted conversation history string
+ */
+export function formatConversationHistory(history: BaseMessage[]): string {
+  if (!history || history.length === 0) {
+    return '';
+  }
+
+  const formattedMessages = history.map((msg) => {
+    const role = msg instanceof HumanMessage ? 'USER' : 'AI';
+    let content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    
+    // Truncate AI responses to first 500 chars to save tokens
+    if (role === 'AI' && content.length > 500) {
+      content = content.substring(0, 500) + '... [truncated]';
+    }
+    
+    return `${role}: ${content}`;
+  }).join('\n\n');
+
+  return `\n\nPREVIOUS CONVERSATION:\n${formattedMessages}\n`;
+}
+
+/**
  * Format the full CastSense analysis prompt using LangChain template.
  * 
  * @param contextPack - Structured context from enrichment + options
+ * @param conversationHistory - Optional conversation history for follow-up queries
  * @returns Formatted prompt text ready for AI model
  */
-export async function formatAnalysisPrompt(contextPack: ContextPack): Promise<string> {
+export async function formatAnalysisPrompt(
+  contextPack: ContextPack,
+  conversationHistory?: BaseMessage[]
+): Promise<string> {
   const variables = buildPromptVariables(contextPack);
   const messages = await CASTSENSE_PROMPT_TEMPLATE.formatMessages(variables);
   
   // Extract text from the user message (safe array access)
   const firstMessage = messages[0];
-  if (firstMessage?.content) {
-    return typeof firstMessage.content === 'string' 
-      ? firstMessage.content 
-      : JSON.stringify(firstMessage.content);
+  if (!firstMessage?.content) {
+    throw new Error('Failed to format prompt: no message content');
   }
   
-  throw new Error('Failed to format prompt: no message content');
+  let promptText = typeof firstMessage.content === 'string' 
+    ? firstMessage.content 
+    : JSON.stringify(firstMessage.content);
+  
+  // Append conversation history if provided
+  if (conversationHistory && conversationHistory.length > 0) {
+    promptText += formatConversationHistory(conversationHistory);
+  }
+  
+  return promptText;
 }
 
 /**

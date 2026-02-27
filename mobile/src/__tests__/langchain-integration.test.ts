@@ -81,13 +81,13 @@ const mockEnrichment: EnrichmentResults = {
     wind_direction_deg: 180,
     cloud_cover_pct: 40,
     pressure_inhg: 30.12,
-    pressure_trend: 'stable',
+    pressure_trend: 'steady',
     precip_24h_in: 0.0
   },
   solar: {
     sunrise_local: '06:30 AM',
     sunset_local: '07:45 PM',
-    daylight_phase: 'afternoon',
+    daylight_phase: 'day',
     season: 'summer'
   }
 };
@@ -211,7 +211,7 @@ function mockSuccessfulInvoke(result: CastSenseResult = mockValidResult) {
     content: JSON.stringify(result)
   });
   
-  (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+  (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
     invoke: mockInvoke
   }));
   
@@ -224,7 +224,7 @@ function mockSuccessfulInvoke(result: CastSenseResult = mockValidResult) {
 function mockFailedInvoke(error: Error) {
   const mockInvoke = jest.fn().mockRejectedValue(error);
   
-  (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+  (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
     invoke: mockInvoke
   }));
   
@@ -239,7 +239,7 @@ function mockInvalidJsonInvoke() {
     content: 'This is not valid JSON'
   });
   
-  (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+  (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
     invoke: mockInvoke
   }));
   
@@ -257,7 +257,7 @@ function mockMalformedResultInvoke() {
     })
   });
   
-  (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+  (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
     invoke: mockInvoke
   }));
   
@@ -483,7 +483,7 @@ describe('LangChain Integration Tests', () => {
       const mockFollowUpResponse = jest.fn().mockResolvedValue({
         content: 'Use a Texas-rigged worm in Zone Z1 for best results.'
       });
-      (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+      (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
         invoke: mockFollowUpResponse
       }));
 
@@ -584,7 +584,7 @@ describe('LangChain Integration Tests', () => {
       const mockFollowUp = jest.fn().mockResolvedValue({
         content: 'Based on the previous analysis, Zone Z1 has the highest confidence for bass.'
       });
-      (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+      (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
         invoke: mockFollowUp
       }));
 
@@ -635,7 +635,7 @@ describe('LangChain Integration Tests', () => {
       const error = new Error('API error');
       (error as any).status = 401;
       const mockInvoke = jest.fn().mockRejectedValue(error);
-      (ChatOpenAI as jest.Mock).mockImplementation(() => ({
+      (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
         invoke: mockInvoke
       }));
 
@@ -734,7 +734,7 @@ describe('LangChain Integration Tests', () => {
           ...mockValidResult.zones[0],
           polygon: [[2.5, 3.0], [1.1, 0.5], [0.8, 0.9]] // Invalid: > 1.0
         }]
-      };
+      } as CastSenseResult; // Type assertion for intentionally invalid test data
       mockSuccessfulInvoke(invalidResult);
 
       const request: AnalysisRequest = {
@@ -791,7 +791,7 @@ describe('LangChain Integration Tests', () => {
         expect(result.data.zones.length).toBeGreaterThan(0);
         
         // Verify zones have required overlay data
-        const zone = result.data.zones[0];
+        const zone = result.data.zones[0]!; // Non-null assertion: length check ensures it exists
         expect(zone.polygon).toBeDefined();
         expect(zone.cast_arrow).toBeDefined();
         expect(zone.polygon.length).toBeGreaterThanOrEqual(3);
