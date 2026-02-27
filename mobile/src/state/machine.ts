@@ -19,6 +19,7 @@ export type AppState =
   | 'Enriching'
   | 'Analyzing'
   | 'Results'
+  | 'FollowUp'
   | 'Error';
 
 export type AnalysisMode = 'general' | 'specific';
@@ -84,6 +85,10 @@ export interface MachineState {
   // Results
   analysisResult: AnalysisResult | null;
   
+  // Conversation memory
+  sessionId: string | null;
+  followUpQuestion: string | null;
+  
   // Error
   error: AppError | null;
   
@@ -105,6 +110,8 @@ export const initialState: MachineState = {
   availableModels: [],
   captureResult: null,
   analysisResult: null,
+  sessionId: null,
+  followUpQuestion: null,
   error: null,
   processingProgress: 0,
   enrichmentProgress: 0,
@@ -132,7 +139,8 @@ export type AppAction =
   | { type: 'UPDATE_ENRICHMENT_PROGRESS'; payload: number }
   | { type: 'START_AI_ANALYSIS' }
   | { type: 'UPDATE_AI_PROGRESS'; payload: number }
-  | { type: 'RECEIVE_RESULTS'; payload: AnalysisResult }
+  | { type: 'RECEIVE_RESULTS'; payload: { result: AnalysisResult; sessionId: string } }
+  | { type: 'ASK_FOLLOW_UP'; payload: string }
   | { type: 'HANDLE_ERROR'; payload: AppError }
   | { type: 'RETRY' }
   | { type: 'RESET' };
@@ -212,9 +220,14 @@ export const actions = {
     payload: progress,
   }),
 
-  receiveResults: (result: AnalysisResult): AppAction => ({
+  receiveResults: (result: AnalysisResult, sessionId: string): AppAction => ({
     type: 'RECEIVE_RESULTS',
-    payload: result,
+    payload: { result, sessionId },
+  }),
+
+  askFollowUp: (question: string): AppAction => ({
+    type: 'ASK_FOLLOW_UP',
+    payload: question,
   }),
 
   handleError: (error: AppError): AppAction => ({
@@ -376,10 +389,21 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       return {
         ...state,
         state: 'Results',
-        analysisResult: action.payload,
+        analysisResult: action.payload.result,
+        sessionId: action.payload.sessionId,
         aiProgress: 1,
         error: null,
         retryCount: 0,
+      };
+
+    case 'ASK_FOLLOW_UP':
+      // Can only ask follow-up from Results state
+      if (state.state !== 'Results') return state;
+      
+      return {
+        ...state,
+        state: 'FollowUp',
+        followUpQuestion: action.payload,
       };
 
     case 'HANDLE_ERROR':
@@ -461,9 +485,78 @@ export function getStateProgress(state: MachineState): number {
       return 45 + (state.aiProgress * 50);
     case 'Results':
       return 100;
+    case 'FollowUp':
+      return 100; // Same as Results since we're in follow-up mode
     case 'Error':
       return 0;
     default:
       return 0;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Follow-Up Query Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Check if follow-up queries are supported in the current state.
+ * Follow-up queries can be asked from Results or FollowUp states.
+ * 
+ * @param state - Current machine state
+ * @returns True if follow-up queries are supported
+ * 
+ * @example
+ * ```typescript
+ * if (canAskFollowUp(state)) {
+ *   // Show follow-up query input UI
+ * }
+ * ```
+ */
+export function canAskFollowUp(state: MachineState): boolean {
+  return state.state === 'Results' || state.state === 'FollowUp';
+}
+
+/**
+ * Get the session ID from the current state.
+ * Session ID is available in Results and FollowUp states.
+ * 
+ * @param state - Current machine state
+ * @returns Session ID or null if not available
+ * 
+ * @example
+ * ```typescript
+ * const sessionId = getSessionId(state);
+ * if (sessionId) {
+ *   const history = await getConversationHistory(sessionId);
+ * }
+ * ```
+ */
+export function getSessionId(state: MachineState): string | null {
+  if (state.state === 'Results' || state.state === 'FollowUp') {
+    return state.sessionId;
+  }
+  return null;
+}
+
+/**
+ * Check if the current state has a conversation session.
+ * 
+ * @param state - Current machine state
+ * @returns True if state has a session ID
+ */
+export function hasSession(state: MachineState): boolean {
+  return state.sessionId !== null;
+}
+
+/**
+ * Get the current follow-up question if in FollowUp state.
+ * 
+ * @param state - Current machine state
+ * @returns Follow-up question or null
+ */
+export function getFollowUpQuestion(state: MachineState): string | null {
+  if (state.state === 'FollowUp') {
+    return state.followUpQuestion;
+  }
+  return null;
 }

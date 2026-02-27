@@ -194,6 +194,16 @@ interface CastSenseRequestMetadata {
 }
 ```
 
+## AI Integration
+
+CastSense uses **LangChain.js** for its AI layer:
+- Structured output parsing with Zod schemas
+- Conversation memory for follow-up queries
+- Robust error handling and recovery
+- Semantic versioning of prompts
+
+See [docs/LANGCHAIN.md](docs/LANGCHAIN.md) for architecture details.
+
 ## Permissions
 
 The app requests the following permissions:

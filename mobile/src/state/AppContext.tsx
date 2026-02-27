@@ -66,7 +66,8 @@ interface AppContextValue {
   updateEnrichmentProgress: (progress: number) => void;
   startAIAnalysis: () => void;
   updateAIProgress: (progress: number) => void;
-  receiveResults: (result: AnalysisResult) => void;
+  receiveResults: (result: AnalysisResult, sessionId: string) => void;
+  askFollowUp: (question: string) => void;
   handleError: (error: AppError) => void;
   retry: () => void;
   reset: () => void;
@@ -211,8 +212,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   );
 
   const receiveResults = useCallback(
-    (result: AnalysisResult) => {
-      dispatch(actions.receiveResults(result));
+    (result: AnalysisResult, sessionId: string) => {
+      dispatch(actions.receiveResults(result, sessionId));
     },
     []
   );
@@ -220,6 +221,13 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   const handleError = useCallback(
     (error: AppError) => {
       dispatch(actions.handleError(error));
+    },
+    []
+  );
+
+  const askFollowUp = useCallback(
+    (question: string) => {
+      dispatch(actions.askFollowUp(question));
     },
     []
   );
@@ -256,6 +264,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       startAIAnalysis,
       updateAIProgress,
       receiveResults,
+      askFollowUp,
       handleError,
       retry,
       reset,
@@ -279,6 +288,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       startAIAnalysis,
       updateAIProgress,
       receiveResults,
+      askFollowUp,
       handleError,
       retry,
       reset,

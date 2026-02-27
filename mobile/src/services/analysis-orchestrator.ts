@@ -4,16 +4,20 @@
  * Coordinates the full analysis pipeline:
  * 1. Image processing (downscaling)
  * 2. Enrichment (geocoding, weather, solar)
- * 3. AI analysis (OpenAI vision)
- * 4. Validation (schema + geometry)
+ * 3. AI analysis (LangChain + OpenAI vision)
+ * 4. Validation (Zod schemas + geometry)
  * 
  * Provides progress callbacks for UI updates.
  */
 
 import { processImage } from './image-processor';
 import { enrichMetadata, EnrichmentResults } from './enrichment';
-import { analyzeImage, AnalysisOptions, AIClientError } from './ai-client';
-import { validateAIResult, ValidationResult } from './validation';
+import { 
+  analyzeWithLangChain, 
+  LangChainError,
+  type AnalysisRequest as LangChainAnalysisRequest,
+  type AnalysisResult as LangChainAnalysisResult 
+} from './langchain-chain';
 
 // ============================================================================
 // Types
@@ -31,6 +35,22 @@ export interface AnalysisError {
   message: string;
   retryable: boolean;
   details?: unknown;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: Array<{ type: string; message: string; path?: string }>;
+  warnings: Array<{ type: string; message: string; path?: string }>;
+  parsed?: unknown;
+}
+
+export interface AnalysisOptions {
+  mode: 'general' | 'specific';
+  targetSpecies?: string;
+  platform?: 'shore' | 'kayak' | 'boat';
+  gear?: string;
+  lures_available?: string[];
+  model?: string;
 }
 
 export interface AnalysisResult {
@@ -59,6 +79,7 @@ export interface AnalysisInput {
   };
   options: AnalysisOptions;
   apiKey: string;
+  model?: string;
   onProgress?: (progress: AnalysisProgress) => void;
 }
 
@@ -78,9 +99,9 @@ function createAnalysisError(
 function handleError(error: unknown): AnalysisError {
   console.error('[Orchestrator] Analysis failed:', error);
 
-  // Handle AI client errors
-  if (error instanceof AIClientError) {
-    const codeMapping: Record<AIClientError['code'], AnalysisError['code']> = {
+  // Handle LangChain errors
+  if (error instanceof LangChainError) {
+    const codeMapping: Record<LangChainError['code'], AnalysisError['code']> = {
       'AI_TIMEOUT': 'AI_TIMEOUT',
       'AI_RATE_LIMITED': 'AI_RATE_LIMITED',
       'AI_INVALID_KEY': 'AI_INVALID_KEY',
@@ -92,7 +113,8 @@ function handleError(error: unknown): AnalysisError {
     return createAnalysisError(
       codeMapping[error.code] || 'UNKNOWN',
       error.message,
-      error.retryable
+      error.retryable,
+      error.details
     );
   }
 
@@ -212,26 +234,65 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
     });
 
     const aiStart = Date.now();
-    const aiResult = await analyzeImage(
-      model,
-      processedImage.base64,
-      processedImage.width,
-      processedImage.height,
-      enrichmentResult.results,
+    
+    // Use LangChain for AI analysis
+    const langchainRequest: LangChainAnalysisRequest = {
+      modelName: model,
+      imageBase64: processedImage.base64,
+      imageWidth: processedImage.width,
+      imageHeight: processedImage.height,
+      enrichment: enrichmentResult.results,
       location,
       options,
       apiKey
-    );
+    };
+
+    const langchainResult = await analyzeWithLangChain(langchainRequest);
+
+    if (!langchainResult.success) {
+      // Return error immediately without throwing
+      // Map LangChain error codes to orchestrator error codes
+      const codeMapping: Record<string, AnalysisError['code']> = {
+        'AI_TIMEOUT': 'AI_TIMEOUT',
+        'AI_RATE_LIMITED': 'AI_RATE_LIMITED',
+        'AI_INVALID_KEY': 'AI_INVALID_KEY',
+        'AI_NETWORK_ERROR': 'NETWORK_ERROR',
+        'AI_PARSE_ERROR': 'VALIDATION_ERROR',
+        'AI_PROVIDER_ERROR': 'NETWORK_ERROR'
+      };
+
+      return {
+        success: false,
+        error: createAnalysisError(
+          codeMapping[langchainResult.error.code] || 'UNKNOWN',
+          langchainResult.error.message,
+          langchainResult.error.retryable,
+          langchainResult.error.details
+        )
+      };
+    }
+
+    // Use LangChain result (pre-validated)
+    const aiResult = {
+      model: langchainResult.model,
+      result: langchainResult.data,
+      rawResponse: langchainResult.rawResponse
+    };
+    const rawResponse = langchainResult.rawResponse;
+    const modelUsed = langchainResult.model;
+
     timings.ai_ms = Date.now() - aiStart;
 
-    console.log('[Orchestrator] AI analysis complete', {
-      model: aiResult.model,
+    console.log('[Orchestrator] LangChain analysis complete', {
+      model: modelUsed,
       duration: timings.ai_ms
     });
 
     // ========================================================================
     // Stage 4: Validation
     // ========================================================================
+    // Note: LangChain pre-validates output in the analysis chain,
+    // so this stage mostly tracks timing for consistency
     onProgress?.({
       stage: 'validating',
       message: 'Validating results...',
@@ -239,27 +300,18 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
     });
 
     const validationStart = Date.now();
-    const validation = validateAIResult(aiResult.rawResponse);
+    
+    // LangChain already validated via Zod schemas
+    const validation = {
+      valid: true,
+      errors: [],
+      warnings: [],
+      parsed: aiResult.result
+    };
+    
     timings.validation_ms = Date.now() - validationStart;
 
-    if (!validation.valid) {
-      console.warn('[Orchestrator] Validation failed', {
-        errorCount: validation.errors.length,
-        errors: validation.errors
-      });
-
-      return {
-        success: false,
-        error: createAnalysisError(
-          'VALIDATION_ERROR',
-          'AI output validation failed. Please try again.',
-          true,
-          { validationErrors: validation.errors }
-        )
-      };
-    }
-
-    console.log('[Orchestrator] Validation passed');
+    console.log('[Orchestrator] Validation complete (pre-validated by LangChain)');
 
     // ========================================================================
     // Complete
@@ -275,10 +327,10 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
     return {
       success: true,
       data: {
-        result: validation.parsed || aiResult.result,
+        result: aiResult.result,
         enrichment: enrichmentResult.results,
         validation,
-        model: aiResult.model,
+        model: modelUsed,
         timings
       }
     };

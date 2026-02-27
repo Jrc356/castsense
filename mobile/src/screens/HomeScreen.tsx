@@ -37,6 +37,7 @@ import {runAnalysis} from '../services/analysis-orchestrator';
 import {getCurrentLocation} from '../services/metadata';
 import {getApiKey} from '../services/api-key-storage';
 import {fetchAvailableModels} from '../services/model-discovery';
+import {createSessionId} from '../services/langchain-memory';
 import type {
   AnalysisMode,
   PlatformContext,
@@ -256,7 +257,8 @@ export function HomeScreen(): React.JSX.Element {
         });
 
         if (result.success && result.data) {
-          receiveResults(result.data);
+          const sessionId = createSessionId();
+          receiveResults(result.data, sessionId);
           navigation.navigate('Results', {
             result: result.data,
             mediaUri: captureResult.uri,

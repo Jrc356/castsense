@@ -12,12 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.28",
+    "@langchain/openai": "^1.2.10",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^6.1.9",
     "@react-navigation/native-stack": "^6.9.17",
     "@shopify/react-native-skia": "2.2.12",
-    "ajv": "^8.12.0",
-    "ajv-formats": "^2.1.1",
     "expo": "^54.0.0",
     "expo-camera": "^17.0.10",
     "expo-constants": "^18.0.13",
@@ -29,6 +29,7 @@
     "expo-location": "^19.0.8",
     "expo-secure-store": "^14.0.8",
     "expo-video": "^3.0.16",
+    "langchain": "^1.2.27",
     "openai": "^4.28.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
