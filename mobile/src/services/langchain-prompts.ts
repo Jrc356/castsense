@@ -400,11 +400,12 @@ export async function formatAnalysisPrompt(contextPack: ContextPack): Promise<st
   const variables = buildPromptVariables(contextPack);
   const messages = await CASTSENSE_PROMPT_TEMPLATE.formatMessages(variables);
   
-  // Extract text from the user message
-  if (messages.length > 0 && messages[0].content) {
-    return typeof messages[0].content === 'string' 
-      ? messages[0].content 
-      : JSON.stringify(messages[0].content);
+  // Extract text from the user message (safe array access)
+  const firstMessage = messages[0];
+  if (firstMessage?.content) {
+    return typeof firstMessage.content === 'string' 
+      ? firstMessage.content 
+      : JSON.stringify(firstMessage.content);
   }
   
   throw new Error('Failed to format prompt: no message content');

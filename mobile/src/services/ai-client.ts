@@ -3,6 +3,9 @@
  * 
  * Handles OpenAI vision API calls for fishing analysis.
  * Uses user's API key for BYO-API-key model.
+ * 
+ * TODO (Task 7+): Replace prompt building with langchain-prompts.ts once chain integration complete.
+ * Currently preserved for regression testing and backwards compatibility.
  */
 
 import OpenAI from 'openai';

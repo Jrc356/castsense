@@ -50,7 +50,7 @@ const MOCK_ENRICHMENT_FULL: EnrichmentResults = {
     season: 'summer',
     sunrise_local: '05:45',
     sunset_local: '20:30',
-    daylight_phase: 'afternoon'
+    daylight_phase: 'day'
   }
 };
 
@@ -104,7 +104,7 @@ describe('buildContextPack', () => {
     expect(contextPack.time?.season).toBe('summer');
     expect(contextPack.time?.sunrise_local).toBe('05:45');
     expect(contextPack.time?.sunset_local).toBe('20:30');
-    expect(contextPack.time?.daylight_phase).toBe('afternoon');
+    expect(contextPack.time?.daylight_phase).toBe('day');
     expect(contextPack.time?.local_time).toMatch(/^\d{2}:\d{2}$/);
 
     expect(contextPack.weather).toEqual({
@@ -215,7 +215,7 @@ describe('buildPromptVariables', () => {
     expect(variables.formatted_context).toContain('Local time:');
     expect(variables.formatted_context).toContain('Season: summer');
     expect(variables.formatted_context).toContain('Sunrise: 05:45, Sunset: 20:30');
-    expect(variables.formatted_context).toContain('Daylight phase: afternoon');
+    expect(variables.formatted_context).toContain('Daylight phase: day');
 
     expect(variables.formatted_context).toContain('WEATHER:');
     expect(variables.formatted_context).toContain('Air temp: 72°F');
