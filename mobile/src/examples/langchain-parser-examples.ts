@@ -4,7 +4,7 @@
  * Demonstrates how to use the new parser in the AI client workflow
  */
 
-import { parseAIResult, parseAIResultSync, getFormatInstructions, CastSenseResult } from './services/langchain-parsers';
+import { parseAIResult, parseAIResultSync, getFormatInstructions, CastSenseResult } from '../services/langchain-parsers';
 
 // ============================================================================
 // Example 1: Basic Usage (Async)
@@ -45,7 +45,7 @@ async function example1_basicAsync() {
 
   if (!result.valid) {
     console.error('Validation failed:');
-    result.errors.forEach(err => {
+    result.errors.forEach((err: { type: string; message: string; path?: string }) => {
       console.error(`  [${err.type}] ${err.message}`);
       if (err.path) console.error(`    at: ${err.path}`);
     });
@@ -57,7 +57,9 @@ async function example1_basicAsync() {
   console.log('✓ Validation passed');
   console.log(`  Mode: ${data.mode}`);
   console.log(`  Zones: ${data.zones.length}`);
-  console.log(`  First zone: ${data.zones[0].label} (${data.zones[0].confidence})`);
+  if (data.zones.length > 0) {
+    console.log(`  First zone: ${data.zones[0]!.label} (${data.zones[0]!.confidence})`);
+  }
 }
 
 // ============================================================================

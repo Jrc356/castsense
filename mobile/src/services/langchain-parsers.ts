@@ -130,12 +130,12 @@ export type CastSenseResult = z.infer<typeof CastSenseResultSchema>;
 // Parser Setup
 // ============================================================================
 
-let parser: StructuredOutputParser<CastSenseResult> | null = null;
+let parser: StructuredOutputParser<any> | null = null;
 
 /**
  * Get or create the structured output parser
  */
-function getParser(): StructuredOutputParser<CastSenseResult> {
+function getParser(): StructuredOutputParser<any> {
   if (!parser) {
     parser = StructuredOutputParser.fromZodSchema(CastSenseResultSchema);
   }
@@ -377,7 +377,7 @@ export async function parseAIResult(rawResponse: string): Promise<ValidationResu
   let parsed: CastSenseResult;
 
   try {
-    parsed = await p.parse(jsonString);
+    parsed = await p.parse(jsonString) as CastSenseResult;
   } catch (error) {
     // LangChain parser throws on validation failure
     return {

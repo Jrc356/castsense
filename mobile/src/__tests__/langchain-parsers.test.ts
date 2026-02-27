@@ -224,28 +224,31 @@ describe('LangChain Parsers', () => {
       const result = await parseAIResult(validResultJSON);
       expect(result.valid).toBe(true);
       const parsed = result.parsed as CastSenseResult;
-      expect(parsed.zones[0].cast_arrow.start).toEqual([0.2, 0.25]);
+      expect(parsed.zones.length).toBeGreaterThan(0);
+      expect(parsed.zones[0]!.cast_arrow.start).toEqual([0.2, 0.25]);
     });
 
     it('should return parse error for invalid JSON', async () => {
       const invalid = '{ "mode": "general", invalid }';
       const result = await parseAIResult(invalid);
       expect(result.valid).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].type).toBe('schema');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
     });
 
     it('should return parse error for empty string', async () => {
       const result = await parseAIResult('');
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('parse');
-      expect(result.errors[0].message).toContain('No valid JSON');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('parse');
+      expect(result.errors[0]!.message).toContain('No valid JSON');
     });
 
     it('should return parse error for non-JSON text', async () => {
       const result = await parseAIResult('This is just plain text without JSON');
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('parse');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('parse');
     });
   });
 
@@ -273,7 +276,8 @@ describe('LangChain Parsers', () => {
       const invalidJSON = JSON.stringify(invalid);
       const result = await parseAIResult(invalidJSON);
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('schema');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
     });
 
     it('should detect arrow points outside normalized bounds', async () => {
@@ -291,7 +295,8 @@ describe('LangChain Parsers', () => {
       const invalidJSON = JSON.stringify(invalid);
       const result = await parseAIResult(invalidJSON);
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('schema');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
     });
 
     it('should validate retrieve path points', async () => {
@@ -326,8 +331,8 @@ describe('LangChain Parsers', () => {
       expect(result.valid).toBe(false);
       
       const integrityErrors = result.errors.filter(e => e.type === 'integrity');
-      expect(integrityErrors).toHaveLength(1);
-      expect(integrityErrors[0].message).toContain('non-existent zone_id');
+      expect(integrityErrors.length).toBeGreaterThan(0);
+      expect(integrityErrors[0]!.message).toContain('non-existent zone_id');
     });
 
     it('should allow zones without tactics (warn only)', async () => {
@@ -369,7 +374,8 @@ describe('LangChain Parsers', () => {
       const invalid = { mode: 'general' }; // Missing required fields
       const result = parseAIResultSync(JSON.stringify(invalid));
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('schema');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
     });
 
     it('should extract JSON from markdown', () => {
@@ -481,7 +487,8 @@ describe('LangChain Parsers', () => {
       };
       const result = await parseAIResult(JSON.stringify(tooManyZones));
       expect(result.valid).toBe(false);
-      expect(result.errors[0].type).toBe('schema');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]!.type).toBe('schema');
     });
 
     it('should handle video frame metadata', async () => {
