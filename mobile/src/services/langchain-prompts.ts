@@ -9,6 +9,25 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { EnrichmentResults } from './enrichment';
 
 // ============================================================================
+// Version
+// ============================================================================
+
+/**
+ * Semantic version of the prompt template.
+ * 
+ * Version format: MAJOR.MINOR.PATCH
+ * - MAJOR: Breaking changes to prompt structure or output format
+ * - MINOR: Backward-compatible additions (new sections, variables, instructions)
+ * - PATCH: Bug fixes, wording improvements, clarifications
+ * 
+ * Current version: 1.0.0
+ * - Initial LangChain-based prompt template
+ * - Migrated from string concatenation to ChatPromptTemplate
+ * - Maintains output parity with original implementation
+ */
+export const PROMPT_VERSION = '1.0.0' as const;
+
+// ============================================================================
 // Types
 // ============================================================================
 

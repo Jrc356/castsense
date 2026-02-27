@@ -12,6 +12,7 @@ import {
   buildPromptVariables,
   formatAnalysisPrompt,
   getPromptTemplate,
+  PROMPT_VERSION,
   type ContextPack,
   type AnalysisOptions
 } from '../langchain-prompts';
@@ -688,6 +689,27 @@ describe('True Regression: Output Matching Original Implementation', () => {
 
     // Compare outputs - should be identical
     expect(newPrompt).toBe(originalPrompt);
+  });
+});
+
+// ============================================================================
+// Prompt Versioning Tests
+// ============================================================================
+
+describe('Prompt versioning', () => {
+  it('should export prompt version', () => {
+    expect(PROMPT_VERSION).toBeDefined();
+    expect(typeof PROMPT_VERSION).toBe('string');
+  });
+
+  it('should follow semantic versioning format', () => {
+    expect(PROMPT_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('should be accessible as a const string', () => {
+    // TypeScript should infer the literal type
+    const version: typeof PROMPT_VERSION = PROMPT_VERSION;
+    expect(version).toBe('1.0.0');
   });
 });
 
