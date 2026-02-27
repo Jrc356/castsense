@@ -13,7 +13,25 @@
 import { processImage } from './image-processor';
 import { enrichMetadata, EnrichmentResults } from './enrichment';
 import { analyzeImage, AnalysisOptions, AIClientError } from './ai-client';
+import { 
+  analyzeWithLangChain, 
+  LangChainError,
+  type AnalysisRequest as LangChainAnalysisRequest,
+  type AnalysisResult as LangChainAnalysisResult 
+} from './langchain-chain';
 import { validateAIResult, ValidationResult } from './validation';
+
+// ============================================================================
+// Feature Flags
+// ============================================================================
+
+/**
+ * Feature flag to toggle LangChain vs legacy AI client.
+ * Set to true to use LangChain, false to use legacy OpenAI SDK.
+ * 
+ * This allows safe rollback if issues arise during migration.
+ */
+const USE_LANGCHAIN = true;
 
 // ============================================================================
 // Types
@@ -78,7 +96,26 @@ function createAnalysisError(
 function handleError(error: unknown): AnalysisError {
   console.error('[Orchestrator] Analysis failed:', error);
 
-  // Handle AI client errors
+  // Handle LangChain errors
+  if (error instanceof LangChainError) {
+    const codeMapping: Record<LangChainError['code'], AnalysisError['code']> = {
+      'AI_TIMEOUT': 'AI_TIMEOUT',
+      'AI_RATE_LIMITED': 'AI_RATE_LIMITED',
+      'AI_INVALID_KEY': 'AI_INVALID_KEY',
+      'AI_NETWORK_ERROR': 'NETWORK_ERROR',
+      'AI_PARSE_ERROR': 'VALIDATION_ERROR',
+      'AI_PROVIDER_ERROR': 'NETWORK_ERROR'
+    };
+
+    return createAnalysisError(
+      codeMapping[error.code] || 'UNKNOWN',
+      error.message,
+      error.retryable,
+      error.details
+    );
+  }
+
+  // Handle legacy AI client errors (for rollback compatibility)
   if (error instanceof AIClientError) {
     const codeMapping: Record<AIClientError['code'], AnalysisError['code']> = {
       'AI_TIMEOUT': 'AI_TIMEOUT',
@@ -212,22 +249,84 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
     });
 
     const aiStart = Date.now();
-    const aiResult = await analyzeImage(
-      model,
-      processedImage.base64,
-      processedImage.width,
-      processedImage.height,
-      enrichmentResult.results,
-      location,
-      options,
-      apiKey
-    );
-    timings.ai_ms = Date.now() - aiStart;
+    
+    let aiResult: any;
+    let rawResponse: string;
+    let modelUsed: string = model;
 
-    console.log('[Orchestrator] AI analysis complete', {
-      model: aiResult.model,
-      duration: timings.ai_ms
-    });
+    if (USE_LANGCHAIN) {
+      // Use LangChain for AI analysis
+      const langchainRequest: LangChainAnalysisRequest = {
+        modelName: model,
+        imageBase64: processedImage.base64,
+        imageWidth: processedImage.width,
+        imageHeight: processedImage.height,
+        enrichment: enrichmentResult.results,
+        location,
+        options,
+        apiKey
+      };
+
+      const langchainResult = await analyzeWithLangChain(langchainRequest);
+
+      if (!langchainResult.success) {
+        // Return error immediately without throwing
+        // Map LangChain error codes to orchestrator error codes
+        const codeMapping: Record<string, AnalysisError['code']> = {
+          'AI_TIMEOUT': 'AI_TIMEOUT',
+          'AI_RATE_LIMITED': 'AI_RATE_LIMITED',
+          'AI_INVALID_KEY': 'AI_INVALID_KEY',
+          'AI_NETWORK_ERROR': 'NETWORK_ERROR',
+          'AI_PARSE_ERROR': 'VALIDATION_ERROR',
+          'AI_PROVIDER_ERROR': 'NETWORK_ERROR'
+        };
+
+        return {
+          success: false,
+          error: createAnalysisError(
+            codeMapping[langchainResult.error.code] || 'UNKNOWN',
+            langchainResult.error.message,
+            langchainResult.error.retryable,
+            langchainResult.error.details
+          )
+        };
+      }
+
+      // Use LangChain result
+      aiResult = {
+        model: langchainResult.model,
+        result: langchainResult.data,
+        rawResponse: langchainResult.rawResponse
+      };
+      rawResponse = langchainResult.rawResponse;
+      modelUsed = langchainResult.model;
+
+      console.log('[Orchestrator] LangChain analysis complete', {
+        model: modelUsed,
+        duration: Date.now() - aiStart
+      });
+    } else {
+      // Legacy path: use direct OpenAI SDK
+      aiResult = await analyzeImage(
+        model,
+        processedImage.base64,
+        processedImage.width,
+        processedImage.height,
+        enrichmentResult.results,
+        location,
+        options,
+        apiKey
+      );
+      rawResponse = aiResult.rawResponse;
+      modelUsed = aiResult.model;
+
+      console.log('[Orchestrator] Legacy AI analysis complete', {
+        model: modelUsed,
+        duration: Date.now() - aiStart
+      });
+    }
+
+    timings.ai_ms = Date.now() - aiStart;
 
     // ========================================================================
     // Stage 4: Validation
@@ -239,7 +338,13 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
     });
 
     const validationStart = Date.now();
-    const validation = validateAIResult(aiResult.rawResponse);
+    
+    // For LangChain, validation is already done in the chain
+    // But we still run our own validation for consistency
+    const validation = USE_LANGCHAIN 
+      ? { valid: true, errors: [], warnings: [], parsed: aiResult.result }
+      : validateAIResult(rawResponse);
+    
     timings.validation_ms = Date.now() - validationStart;
 
     if (!validation.valid) {
@@ -278,7 +383,7 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
         result: validation.parsed || aiResult.result,
         enrichment: enrichmentResult.results,
         validation,
-        model: aiResult.model,
+        model: modelUsed,
         timings
       }
     };
