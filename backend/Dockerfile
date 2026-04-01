@@ -18,6 +18,19 @@ RUN npm ci
 COPY backend/ ./
 RUN npm run build && npm run typecheck
 
+FROM node:20-alpine AS dev
+
+WORKDIR /app
+
+COPY backend/package*.json ./
+RUN npm ci
+
+COPY backend/ ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+
 FROM node:20-alpine
 
 WORKDIR /app

@@ -36,13 +36,19 @@ A responsive web AI fishing assistant that provides scene-aware cast recommendat
 
 ### With Docker Compose
 
-1. Build and start services:
+1. Build and start development services with hot reloading:
 
    docker-compose up --build
 
-   - App: [http://localhost:3000](http://localhost:3000)
+   - Web (Vite HMR): [http://localhost:5173](http://localhost:5173)
+   - Backend health: [http://localhost:3000/health](http://localhost:3000/health)
 
-2. Stop services:
+2. Edit source code and reload behavior:
+
+   - Changes in `web/src` hot-reload in the browser via Vite HMR.
+   - Changes in `backend/src` automatically restart the backend process.
+
+3. Stop services:
 
    docker-compose down
 
