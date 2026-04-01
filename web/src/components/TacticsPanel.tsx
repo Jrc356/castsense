@@ -19,13 +19,32 @@ export function TacticsPanel({ tactics, zones, selectedZoneId }: TacticsPanelPro
   }
 
   return (
-    <section className="panel" aria-label="Selected zone tactics">
+    <section className="panel tactics-panel" aria-label="Selected zone tactics">
       <h3>{zone.label} Tactical Plan</h3>
-      <p><strong>Target species:</strong> {zone.target_species}</p>
-      <p><strong>Rig:</strong> {tactic.recommended_rig}</p>
-      <p><strong>Depth:</strong> {tactic.target_depth}</p>
-      <p><strong>Retrieve:</strong> {tactic.retrieve_style}</p>
-      {tactic.cadence ? <p><strong>Cadence:</strong> {tactic.cadence}</p> : null}
+      <dl className="tactics-facts">
+        <div>
+          <dt>Target species</dt>
+          <dd>{zone.target_species}</dd>
+        </div>
+        <div>
+          <dt>Rig</dt>
+          <dd>{tactic.recommended_rig}</dd>
+        </div>
+        <div>
+          <dt>Depth</dt>
+          <dd>{tactic.target_depth}</dd>
+        </div>
+        <div>
+          <dt>Retrieve</dt>
+          <dd>{tactic.retrieve_style}</dd>
+        </div>
+        {tactic.cadence ? (
+          <div>
+            <dt>Cadence</dt>
+            <dd>{tactic.cadence}</dd>
+          </div>
+        ) : null}
+      </dl>
       {tactic.why_this_zone_works?.length ? (
         <ul>
           {tactic.why_this_zone_works.map((reason, index) => (

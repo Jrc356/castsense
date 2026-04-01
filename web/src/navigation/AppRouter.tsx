@@ -8,7 +8,15 @@ export function AppRouter(): React.JSX.Element {
     <BrowserRouter>
       <div className="app-shell">
         <header className="topbar">
-          <h1>CastSense</h1>
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              CS
+            </span>
+            <div>
+              <h1>CastSense</h1>
+              <p>Water-read tactical assistant</p>
+            </div>
+          </div>
           <nav>
             <NavLink to="/" className={navClass}>Home</NavLink>
             <NavLink to="/capture" className={navClass}>Capture</NavLink>
