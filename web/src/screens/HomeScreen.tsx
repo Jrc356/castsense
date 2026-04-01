@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { runAnalysis } from '../services/analysis-orchestrator'
 import { getApiKey } from '../services/api-key-storage'
@@ -36,21 +36,27 @@ export function HomeScreen(): React.JSX.Element {
   const [notes, setNotes] = useState(state.userConstraints.notes ?? '')
   const [busy, setBusy] = useState(false)
 
+  const selectedModelRef = useRef(state.selectedModel)
+  selectedModelRef.current = state.selectedModel
+
   useEffect(() => {
+    let cancelled = false
     void (async () => {
       const apiKey = await getApiKey()
-      if (!apiKey) return
+      if (!apiKey || cancelled) return
       try {
         const models = await fetchAvailableModels(apiKey)
+        if (cancelled) return
         setAvailableModels(models)
-        if (!state.selectedModel && models[0]) {
+        if (!selectedModelRef.current && models[0]) {
           selectModel(models[0])
         }
       } catch (error) {
         console.warn('Failed to load models', error)
       }
     })()
-  }, [selectModel, setAvailableModels, state.selectedModel])
+    return () => { cancelled = true }
+  }, [selectModel, setAvailableModels])
 
   function openCapture() {
     if (mode === 'specific' && !targetSpecies.trim()) {
@@ -189,6 +195,24 @@ export function HomeScreen(): React.JSX.Element {
             <option value="baitcasting">Baitcasting</option>
             <option value="fly">Fly</option>
           </select>
+        </label>
+
+        <label>
+          Model
+          {state.availableModels.length > 0 ? (
+            <select
+              value={state.selectedModel ?? ''}
+              onChange={(event) => selectModel(event.target.value)}
+            >
+              {state.availableModels.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          ) : (
+            <select disabled>
+              <option>{state.selectedModel ?? 'Loading models…'}</option>
+            </select>
+          )}
         </label>
 
         <label className="wide">
