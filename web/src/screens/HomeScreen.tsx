@@ -120,7 +120,7 @@ export function HomeScreen(): React.JSX.Element {
           mode,
           targetSpecies: mode === 'specific' ? targetSpecies.trim() : undefined,
           platform: platform || undefined,
-          gear,
+          gearType: gear,
         },
         model: state.selectedModel || 'gpt-5.4',
         apiKey,

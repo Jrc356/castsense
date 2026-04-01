@@ -17,6 +17,7 @@ import {
   LangChainError,
   type AnalysisRequest as LangChainAnalysisRequest,
 } from './langchain-chain';
+import type { GearType } from '../types/contracts';
 
 // ============================================================================
 // Types
@@ -47,7 +48,7 @@ export interface AnalysisOptions {
   mode: 'general' | 'specific';
   targetSpecies?: string;
   platform?: 'shore' | 'kayak' | 'boat';
-  gear?: string;
+  gearType?: GearType;
   lures_available?: string[];
   model?: string;
 }

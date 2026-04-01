@@ -6,7 +6,8 @@
  */
 
 import { 
-  buildContextPack, 
+  buildContextPack,
+  buildPromptVariables,
   formatAnalysisPrompt,
   PROMPT_VERSION,
   type AnalysisOptions 
@@ -349,6 +350,105 @@ describe('formatAnalysisPrompt', () => {
     // Specific mode should mention target species
     expect(prompt).toContain('Largemouth Bass');
     expect(prompt).toContain('specific');
+  });
+
+  it('should include XML structural tags', async () => {
+    const options: AnalysisOptions = { mode: 'general' };
+    const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+    const prompt = await formatAnalysisPrompt(contextPack);
+
+    expect(prompt).toContain('<context>');
+    expect(prompt).toContain('</context>');
+    expect(prompt).toContain('<zone_requirements>');
+    expect(prompt).toContain('</zone_requirements>');
+    expect(prompt).toContain('<output_schema>');
+    expect(prompt).toContain('<structured_output_contract>');
+    expect(prompt).toContain('<example>');
+    expect(prompt).toContain('<analysis_instructions>');
+  });
+
+  it('should include gear instructions in prompt when fly gear selected', async () => {
+    const options: AnalysisOptions = { mode: 'general', gearType: 'fly' };
+    const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+    const prompt = await formatAnalysisPrompt(contextPack);
+
+    expect(prompt).toContain('<gear_instructions>');
+    expect(prompt).toContain('nymph');
+    expect(prompt).toContain('streamer');
+    // Verify SPINNING gear instruction block is not present (fly block only)
+    expect(prompt).not.toContain('SPINNING gear');
+  });
+
+  it('should not include gear instructions without gear type', async () => {
+    const options: AnalysisOptions = { mode: 'general' };
+    const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+    const prompt = await formatAnalysisPrompt(contextPack);
+
+    // No closing tag means no gear instruction block was rendered
+    expect(prompt).not.toContain('</gear_instructions>');
+  });
+});
+
+describe('buildPromptVariables', () => {
+  describe('gear instructions', () => {
+    it('should include fly-specific instructions and exclude spinning terms', () => {
+      const options: AnalysisOptions = { mode: 'general', gearType: 'fly' };
+      const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+      const vars = buildPromptVariables(contextPack);
+
+      expect(vars.formatted_context).toContain('<gear_instructions>');
+      expect(vars.formatted_context).toContain('nymph');
+      expect(vars.formatted_context).toContain('streamer');
+      expect(vars.formatted_context).toContain('drift');
+      // Verify the SPINNING gear instruction section is absent
+      expect(vars.formatted_context).not.toContain('SPINNING gear');
+    });
+
+    it('should include spinning-specific instructions and exclude fly terms', () => {
+      const options: AnalysisOptions = { mode: 'general', gearType: 'spinning' };
+      const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+      const vars = buildPromptVariables(contextPack);
+
+      expect(vars.formatted_context).toContain('<gear_instructions>');
+      expect(vars.formatted_context).toContain('crankbait');
+      expect(vars.formatted_context).toContain('jig');
+      // Verify the FLY FISHING gear instruction section is absent
+      expect(vars.formatted_context).not.toContain('FLY FISHING gear');
+    });
+
+    it('should include baitcasting-specific instructions', () => {
+      const options: AnalysisOptions = { mode: 'general', gearType: 'baitcasting' };
+      const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+      const vars = buildPromptVariables(contextPack);
+
+      expect(vars.formatted_context).toContain('<gear_instructions>');
+      expect(vars.formatted_context).toContain('flipping');
+      expect(vars.formatted_context).toContain('pitching');
+    });
+
+    it('should not include gear instructions when gearType is unknown', () => {
+      const options: AnalysisOptions = { mode: 'general', gearType: 'unknown' };
+      const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+      const vars = buildPromptVariables(contextPack);
+
+      expect(vars.formatted_context).not.toContain('</gear_instructions>');
+    });
+
+    it('should not include gear instructions when gearType is absent', () => {
+      const options: AnalysisOptions = { mode: 'general' };
+      const contextPack = buildContextPack(FULL_ENRICHMENT, LOCATION, options);
+
+      const vars = buildPromptVariables(contextPack);
+
+      expect(vars.formatted_context).not.toContain('</gear_instructions>');
+    });
   });
 });
 

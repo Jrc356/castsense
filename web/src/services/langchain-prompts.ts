@@ -21,12 +21,14 @@ import type { EnrichmentResults } from './enrichment';
  * - MINOR: Backward-compatible additions (new sections, variables, instructions)
  * - PATCH: Bug fixes, wording improvements, clarifications
  * 
- * Current version: 1.0.0
- * - Initial LangChain-based prompt template
- * - Migrated from string concatenation to ChatPromptTemplate
- * - Maintains output parity with original implementation
+ * Current version: 1.1.0
+ * - XML-tagged prompt sections for improved model parsing
+ * - Structured output contract block for reliable JSON-only output
+ * - Gear-specific instructions section (fly / spinning / baitcasting)
+ * - Coordinate sanity check in zone requirements
+ * - Few-shot example anchoring output format
  */
-export const PROMPT_VERSION = '1.0.0' as const;
+export const PROMPT_VERSION = '1.1.0' as const;
 
 // ============================================================================
 // Types
@@ -196,19 +198,51 @@ const RESULT_SCHEMA = `{{
   }}
 }}`;
 
-const ZONE_CONSTRAINTS = `
-ZONE REQUIREMENTS:
-- Return 1-3 zones maximum, ordered by priority
+const ZONE_CONSTRAINTS = `- Return 1-3 zones maximum, ordered by priority
 - Each zone_id must be unique (use "A", "B", "C")
-- Labels should be "Primary", "Secondary", "Tertiary" in order
+- Labels must be "Primary", "Secondary", "Tertiary" in order
 - All polygon points must be [x, y] arrays (NOT objects)
-- All coordinates must be in range [0, 1]
+- All coordinates must be within range [0, 1] — verify every coordinate before output
 - Coordinates are relative to image: (0,0) = top-left, (1,1) = bottom-right
-- Polygon must have at least 3 points
-- cast_arrow.start should be from angler's likely position
+- Polygon must have at least 3 non-collinear points
+- cast_arrow, retrieve_path, and all polygon coordinates must also be within [0, 1]
+- cast_arrow.start should be from the angler's likely position
 - cast_arrow.end should point to the target zone area
-- Each tactics entry must reference a valid zone_id
-`;
+- Each tactics entry must reference a valid zone_id`;
+
+// Minimal example anchoring the exact output format (few-shot)
+const PROMPT_EXAMPLE = `{{
+  "mode": "general",
+  "likely_species": [{{"species": "largemouth bass", "confidence": 0.82}}],
+  "analysis_frame": {{"type": "photo", "width_px": 1280, "height_px": 720}},
+  "zones": [{{
+    "zone_id": "A",
+    "label": "Primary",
+    "confidence": 0.88,
+    "target_species": "largemouth bass",
+    "polygon": [[0.25, 0.35], [0.55, 0.35], [0.55, 0.65], [0.25, 0.65]],
+    "cast_arrow": {{"start": [0.5, 0.95], "end": [0.4, 0.5]}},
+    "retrieve_path": [[0.4, 0.5], [0.45, 0.7], [0.5, 0.95]],
+    "style": {{"priority": 1, "hint": "structure"}}
+  }}],
+  "tactics": [{{
+    "zone_id": "A",
+    "recommended_rig": "Texas rig 4in worm",
+    "alternate_rigs": ["drop shot", "shaky head jig"],
+    "target_depth": "4-6 ft",
+    "retrieve_style": "slow drag with pauses",
+    "cadence": "drag 2 ft, pause 3 s, repeat",
+    "cast_count_suggestion": "3-5 casts from multiple angles",
+    "why_this_zone_works": ["submerged structure provides cover", "depth transition concentrates fish"],
+    "steps": ["Cast to the far edge of structure", "Allow bait to sink to bottom", "Drag slowly with rod tip low"]
+  }}],
+  "conditions_summary": ["Overcast skies reduce light penetration and encourage bolder feeding", "Always check local fishing regulations"],
+  "plan_summary": ["Focus on the submerged structure in Zone A with a weedless bottom presentation"],
+  "explainability": {{
+    "scene_observations": ["Submerged rock pile visible near center-right", "Color change indicates depth transition"],
+    "assumptions": ["Water depth estimated at 4-6 ft based on water clarity"]
+  }}
+}}`;
 
 // ============================================================================
 // Template Formatters
@@ -300,6 +334,50 @@ Pressure: ${w.pressure_inhg} inHg (${w.pressure_trend})`;
 }
 
 /**
+ * Format gear-type-specific instructions for the template.
+ * Returns an XML-tagged block that steers terminology and presentation style,
+ * or an empty string when no actionable gear type is set.
+ */
+function formatGearInstructions(contextPack: ContextPack): string {
+  const gearType = contextPack.user_context?.gear_type;
+
+  if (!gearType || gearType === 'unknown') {
+    return '';
+  }
+
+  let instructions: string;
+
+  switch (gearType) {
+    case 'fly':
+      instructions = `The angler is using FLY FISHING gear. Follow these rules strictly:
+- Recommend only fly fishing presentations: dry fly, nymph, wet fly, streamer, or indicator rigs
+- Frame retrieve_style in fly fishing terms: drift, swing, mend, strip, dead drift, across-and-down
+- Suggest fly-appropriate cast approaches: upstream dead drift, across-and-swing, downstream swing
+- Do NOT recommend spinning or baitcasting lures (crankbait, jig, spinner, swimbait, soft plastic, drop-shot, etc.)
+- recommended_rig and alternate_rigs must use fly fishing terminology only`;
+      break;
+    case 'spinning':
+      instructions = `The angler is using SPINNING gear. Follow these rules strictly:
+- Recommend spinning-appropriate presentations: jigs, soft plastics, spinners, crankbaits, swimbaits, drop-shot
+- Frame retrieve_style in spinning terms: steady retrieve, stop-and-go, twitch-and-pause, deadstick
+- Do NOT recommend fly fishing presentations (dry fly, nymph, streamer, indicator, etc.)
+- recommended_rig should reflect spinning tackle (lure choice, hook size, weight)`;
+      break;
+    case 'baitcasting':
+      instructions = `The angler is using BAITCASTING gear. Follow these rules strictly:
+- Recommend baitcasting-appropriate presentations: heavy lures, flipping/pitching rigs, punch baits, swimbaits, chatterbaits
+- Frame retrieve_style to emphasize power fishing: flipping, pitching, power retrieve, burn-and-kill
+- Emphasize structure-heavy fishing: heavy cover, laydowns, docks, deep ledges
+- recommended_rig should reflect heavier tackle appropriate for baitcasting`;
+      break;
+    default:
+      return '';
+  }
+
+  return `<gear_instructions>\n${instructions}\n</gear_instructions>`;
+}
+
+/**
  * Format mode-specific instructions for the template.
  */
 function formatModeInstructions(contextPack: ContextPack): string {
@@ -332,41 +410,55 @@ MODE INSTRUCTIONS (General Mode):
 const CASTSENSE_PROMPT_TEMPLATE = ChatPromptTemplate.fromMessages([
   [
     'user',
-    `You are CastSense, an expert AI fishing guide that analyzes water scenes to identify optimal cast zones and tactics.
+    `You are CastSense, an expert AI fishing guide. You analyze water scene photos to identify optimal cast zones and provide precise, gear-appropriate fishing tactics.
 
-TASK:
-Analyze the provided photo and generate overlay-ready fishing recommendations.
+<task>
+Analyze the provided photo and generate overlay-ready fishing recommendations as a single valid JSON object.
+</task>
 
+<context>
 {formatted_context}
+</context>
 
+<mode_instructions>
 {mode_instructions}
+</mode_instructions>
 
-SAFETY AND COMPLIANCE:
+<safety_and_compliance>
 - Include relevant safety notes in conditions_summary
 - Do not recommend fishing in unsafe conditions
 - Remind users to check local fishing regulations
-- Do not make specific claims about fish presence - focus on structure and high-probability zones
+- Do not make specific claims about fish presence — focus on structure and high-probability zones
+</safety_and_compliance>
 
-OUTPUT REQUIREMENTS:
-- Return ONLY valid JSON, no prose or explanation outside the JSON
-- Follow the exact schema below
-- All coordinates must be normalized [0, 1] relative to image dimensions
-- (0, 0) is top-left, (1, 1) is bottom-right
+<structured_output_contract>
+- Output ONLY the JSON object — no prose, no markdown fences, no explanation outside the JSON
+- Follow the exact schema in <output_schema> below
+- Do not invent fields not defined in the schema
+- Validate that all brackets and braces are balanced before finishing
+- If a required value cannot be determined, use a sensible default from the schema
+</structured_output_contract>
 
+<zone_requirements>
 ${ZONE_CONSTRAINTS}
+</zone_requirements>
 
-OUTPUT SCHEMA:
+<output_schema>
 ${RESULT_SCHEMA}
+</output_schema>
 
-ANALYSIS INSTRUCTIONS:
+<example>
+${PROMPT_EXAMPLE}
+</example>
+
+<analysis_instructions>
 1. Examine the image for fishing structure: weed lines, rock formations, depth changes, wood/timber, shade lines, current seams, inflows, etc.
 2. Identify 1-3 high-probability zones based on visible structure and conditions
-3. For each zone, determine the best approach: lure selection, presentation, retrieve style
-4. Ensure polygon coordinates accurately outline the identified zone
-5. Cast arrows should show realistic casting paths from angler position
+3. For each zone, determine the best approach: lure selection, presentation, and retrieve style — matched to the angler's gear type if specified in <gear_instructions> inside <context>
+4. Ensure polygon coordinates accurately outline the identified zone and pass all sanity checks in <zone_requirements>
+5. Cast arrows should show realistic casting paths from the angler's likely position
 6. Provide clear, actionable tactics for each zone
-
-Remember: Return ONLY the JSON object, no additional text.`
+</analysis_instructions>`
   ]
 ]);
 
@@ -384,11 +476,15 @@ export function buildPromptVariables(contextPack: ContextPack): PromptVariables 
   
   // Mode section (always present)
   sections.push(formatModeSection(contextPack));
-  
+
   // User context (optional)
   const userContext = formatUserContext(contextPack);
   if (userContext) sections.push(userContext);
-  
+
+  // Gear-specific instructions (optional — after user context, before environmental data)
+  const gearInstructions = formatGearInstructions(contextPack);
+  if (gearInstructions) sections.push(gearInstructions);
+
   // Location (optional)
   const location = formatLocation(contextPack);
   if (location) sections.push(location);
