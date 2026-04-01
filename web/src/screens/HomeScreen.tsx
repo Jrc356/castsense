@@ -102,7 +102,7 @@ export function HomeScreen(): React.JSX.Element {
           platform: platform || undefined,
           gear,
         },
-        model: state.selectedModel || 'gpt-4o',
+        model: state.selectedModel || 'gpt-5.4',
         apiKey,
         onProgress: (progress) => {
           if (progress.stage === 'processing') {

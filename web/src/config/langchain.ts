@@ -92,8 +92,10 @@ export const LANGCHAIN_MAX_TOKENS = 4096 as const;
  */
 export function createChatModel(apiKey: string, modelName: string): ChatOpenAI {
   return new ChatOpenAI({
-    openAIApiKey: apiKey,
-    modelName,
+    // @langchain/openai v1 expects `apiKey` + `model`.
+    // Using these fields ensures BYO keys from settings are actually forwarded.
+    apiKey,
+    model: modelName,
     temperature: LANGCHAIN_TEMPERATURE,
     maxTokens: LANGCHAIN_MAX_TOKENS,
     timeout: LANGCHAIN_TIMEOUT_MS,

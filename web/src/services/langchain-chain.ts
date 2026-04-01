@@ -189,6 +189,15 @@ function mapErrorToLangChainError(error: unknown): LangChainError {
     }
 
     // OpenAI-specific errors (LangChain wraps APIError)
+    if (message.includes('missing credentials') || message.includes('pass an `apikey`')) {
+      return new LangChainError(
+        'No API key configured. Please set your OpenAI API key in settings.',
+        'AI_INVALID_KEY',
+        false,
+        { originalError: error.message }
+      );
+    }
+
     if (message.includes('401') || message.includes('unauthorized') || message.includes('invalid api key')) {
       return new LangChainError(
         'Invalid API key. Please check your OpenAI API key in settings.',

@@ -166,12 +166,12 @@ const RESULT_SCHEMA = `{{
     "label": "Primary" | "Secondary" | "Tertiary",
     "confidence": number (0-1),
     "target_species": "string",
-    "polygon": [{{"x": number (0-1), "y": number (0-1)}}, ...],
+    "polygon": [[number (0-1), number (0-1)], ...],
     "cast_arrow": {{
-      "start": {{"x": number (0-1), "y": number (0-1)}},
-      "end": {{"x": number (0-1), "y": number (0-1)}}
+      "start": [number (0-1), number (0-1)],
+      "end": [number (0-1), number (0-1)]
     }},
-    "retrieve_path": [{{"x": number (0-1), "y": number (0-1)}}, ...],
+    "retrieve_path": [[number (0-1), number (0-1)], ...],
     "style": {{
       "priority": number (1 = highest),
       "hint": "cover" | "structure" | "current" | "depth_edge" | "shade" | "inflow" | "unknown"
@@ -201,7 +201,7 @@ ZONE REQUIREMENTS:
 - Return 1-3 zones maximum, ordered by priority
 - Each zone_id must be unique (use "A", "B", "C")
 - Labels should be "Primary", "Secondary", "Tertiary" in order
-- All polygon points must have exactly {{x, y}} properties
+- All polygon points must be [x, y] arrays (NOT objects)
 - All coordinates must be in range [0, 1]
 - Coordinates are relative to image: (0,0) = top-left, (1,1) = bottom-right
 - Polygon must have at least 3 points
