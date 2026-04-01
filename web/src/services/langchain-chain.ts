@@ -150,7 +150,12 @@ export type AnalysisResult = AnalysisSuccess | AnalysisFailure;
  * Preserves existing app error handling logic.
  */
 function mapErrorToLangChainError(error: unknown): LangChainError {
+  // Log full error details so HTTP status + OpenAI body are visible in devtools
+  const httpStatus = (error as { status?: number })?.status;
   console.error('[LangChain Chain] Error during analysis:', error);
+  if (httpStatus !== undefined) {
+    console.error('[LangChain Chain] HTTP status:', httpStatus);
+  }
 
   // Already a LangChainError - pass through
   if (error instanceof LangChainError) {
@@ -362,11 +367,11 @@ export async function analyzeWithLangChain(
           text: promptText
         },
         {
-          type: 'image',
-          source_type: 'base64',
-          data: imageBase64,
-          mimeType: 'image/jpeg',
-          detail: 'high' // OpenAI-specific hint for high-detail analysis
+          type: 'image_url',
+          image_url: {
+            url: `data:image/jpeg;base64,${imageBase64}`,
+            detail: 'high'
+          }
         }
       ]
     });
@@ -375,9 +380,20 @@ export async function analyzeWithLangChain(
     // Step 4: Invoke model with structured output (Zod schema enforced)
     // withStructuredOutput uses OpenAI's native structured output (JSON mode /
     // tool calling) — eliminates manual JSON extraction and parsing.
+    //
+    // method: "functionCalling" — newer models (gpt-4o, gpt-5.x, etc.) default
+    // to "jsonSchema" mode which requires every property in every nested object
+    // to be listed in "required". Our schema uses .optional() for nullable
+    // fields (selected_frame_index, alternate_rigs, etc.) which jsonSchema mode
+    // rejects with HTTP 400. Forcing functionCalling honours optional fields
+    // correctly via tool-calling. strict: false is kept so the underlying tool
+    // definition also does not enforce required-only properties.
     // =========================================================================
     console.log('[LangChain Chain] Invoking model with structured output...');
-    const structuredModel = chatModel.withStructuredOutput(CastSenseResultSchema);
+    const structuredModel = chatModel.withStructuredOutput(CastSenseResultSchema, {
+      method: 'functionCalling',
+      strict: false
+    });
     const parsedData = await structuredModel.invoke([message]) as CastSenseResult;
 
     if (!parsedData) {

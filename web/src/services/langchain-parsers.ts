@@ -29,12 +29,12 @@ export interface ValidationResult {
 // ============================================================================
 
 /**
- * Point coordinate as [x, y] array with normalized values (0-1)
+ * Point coordinate as [x, y] array with normalized values (0-1).
+ * Using z.array() instead of z.tuple() so the generated JSON Schema includes
+ * an "items" field — OpenAI structured output rejects tuple/prefixItems format.
  */
-const NormalizedPointSchema = z.tuple([
-  z.number().min(0).max(1),
-  z.number().min(0).max(1)
-]).describe('Point as [x, y] normalized coordinate');
+const NormalizedPointSchema = z.array(z.number().min(0).max(1)).min(2).max(2)
+  .describe('Point as [x, y] normalized coordinate');
 
 /**
  * Likely species with confidence

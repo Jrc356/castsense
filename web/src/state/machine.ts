@@ -292,10 +292,15 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
       };
 
     case 'START_CAPTURE':
-      if (state.state !== 'ModeSelected' && state.state !== 'Idle') {
-        console.warn('Invalid state transition: START_CAPTURE from', state.state);
+      // Already capturing — idempotent (e.g. React Strict Mode double-effect)
+      if (state.state === 'Capturing') {
         return state;
       }
+      if (state.state !== 'ModeSelected' && state.state !== 'Idle') {
+        console.warn('[State] Invalid transition: START_CAPTURE from', state.state);
+        return state;
+      }
+      console.debug('[State] →', 'Capturing', '(START_CAPTURE)');
       return {
         ...state,
         state: 'Capturing',
@@ -305,9 +310,10 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
 
     case 'COMPLETE_CAPTURE':
       if (state.state !== 'Capturing') {
-        console.warn('Invalid state transition: COMPLETE_CAPTURE from', state.state);
+        console.warn('[State] Invalid transition: COMPLETE_CAPTURE from', state.state);
         return state;
       }
+      console.debug('[State] →', 'ReadyToAnalyze', '(COMPLETE_CAPTURE)');
       return {
         ...state,
         state: 'ReadyToAnalyze',
@@ -316,13 +322,14 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
 
     case 'START_ANALYSIS':
       if (state.state !== 'ReadyToAnalyze') {
-        console.warn('Invalid state transition: START_ANALYSIS from', state.state);
+        console.warn('[State] Invalid transition: START_ANALYSIS from', state.state);
         return state;
       }
       if (!state.captureResult) {
-        console.warn('Cannot start analysis without capture result');
+        console.warn('[State] Cannot start analysis without capture result');
         return state;
       }
+      console.debug('[State] →', 'Processing', '(START_ANALYSIS)');
       return {
         ...state,
         state: 'Processing',
@@ -333,7 +340,7 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
     case 'START_PROCESSING':
       // This can be dispatched from ReadyToAnalyze (via START_ANALYSIS) or directly
       if (!state.captureResult) {
-        console.warn('Cannot start processing without capture result');
+        console.warn('[State] Cannot start processing without capture result');
         return state;
       }
       return {
@@ -351,9 +358,10 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
 
     case 'START_ENRICHMENT':
       if (state.state !== 'Processing') {
-        console.warn('Invalid state transition: START_ENRICHMENT from', state.state);
+        console.warn('[State] Invalid transition: START_ENRICHMENT from', state.state);
         return state;
       }
+      console.debug('[State] →', 'Enriching', '(START_ENRICHMENT)');
       return {
         ...state,
         state: 'Enriching',
@@ -369,9 +377,10 @@ export function appReducer(state: MachineState, action: AppAction): MachineState
 
     case 'START_AI_ANALYSIS':
       if (state.state !== 'Enriching') {
-        console.warn('Invalid state transition: START_AI_ANALYSIS from', state.state);
+        console.warn('[State] Invalid transition: START_AI_ANALYSIS from', state.state);
         return state;
       }
+      console.debug('[State] →', 'Analyzing', '(START_AI_ANALYSIS)');
       return {
         ...state,
         state: 'Analyzing',

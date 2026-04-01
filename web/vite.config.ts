@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    // @langchain/openai must be pre-bundled for Vite dev server to resolve
+    // it when initChatModel-style code uses dynamic bare-specifier imports internally.
+    include: ['@langchain/openai'],
+  },
   test: {
     environment: 'jsdom',
     globals: true,

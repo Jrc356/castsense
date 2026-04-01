@@ -21,7 +21,7 @@ describe('LangChain Configuration', () => {
     });
 
     it('exports LANGCHAIN_TIMEOUT_MS with expected value', () => {
-      expect(LANGCHAIN_TIMEOUT_MS).toBe(30000);
+      expect(LANGCHAIN_TIMEOUT_MS).toBe(120000);
     });
 
     it('exports LANGCHAIN_MAX_TOKENS with expected value', () => {
@@ -61,7 +61,7 @@ describe('LangChain Configuration', () => {
 
     it('configures model with maxRetries set to 0', async () => {
       const model = await createChatModel(testApiKey, testModelName);
-      expect((model as any).maxRetries).toBe(0);
+      expect((model as any).caller.maxRetries).toBe(0);
     });
 
     it('creates different instances for different API keys', async () => {
@@ -84,6 +84,7 @@ describe('LangChain Configuration', () => {
     });
 
     it('accepts empty string as model name (validation at runtime)', async () => {
+      // ChatOpenAI accepts empty model name at construction; validation happens at inference time
       const model = await createChatModel(testApiKey, '');
       expect(model).toBeDefined();
     });
@@ -100,11 +101,10 @@ describe('LangChain Configuration', () => {
       const model = await createChatModel('sk-test-key', 'gpt-4o');
 
       // Verify all key parameters match fishing analysis requirements
-      expect((model as any).temperature).toBe(0.7); // Balanced creativity/consistency
-      expect((model as any).maxTokens).toBe(4096);  // Sufficient for detailed analysis
-      expect((model as any).maxRetries).toBe(0);    // App-level retry handling
-      // LANGCHAIN_TIMEOUT_MS is 30s (30000ms); initChatModel receives it in seconds
-      expect(LANGCHAIN_TIMEOUT_MS).toBe(30000);
+      expect((model as any).temperature).toBe(0.7);               // Balanced creativity/consistency
+      expect((model as any).maxTokens).toBe(4096);                // Sufficient for detailed analysis
+      expect((model as any).caller.maxRetries).toBe(0);           // App-level retry handling
+      expect(LANGCHAIN_TIMEOUT_MS).toBe(120000);
     });
   });
 });

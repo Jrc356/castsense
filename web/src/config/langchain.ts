@@ -17,7 +17,7 @@
  * ]);
  */
 
-import { initChatModel } from 'langchain';
+import { ChatOpenAI } from '@langchain/openai';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration Constants
@@ -36,7 +36,7 @@ export const LANGCHAIN_TEMPERATURE = 0.7 as const;
 /**
  * Request timeout in milliseconds.
  * 
- * Photo analysis timeout. Matches existing AI client behavior.
+ * Photo analysis timeout for LangChain requests.
  * LangChain requests that exceed this duration will be aborted.
  * 
  * Value: 120000ms (120 seconds)
@@ -87,11 +87,12 @@ export const LANGCHAIN_MAX_TOKENS = 4096 as const;
  * @throws Error if API key is invalid (thrown by provider during first request)
  */
 export async function createChatModel(apiKey: string, modelName: string) {
-  return initChatModel(modelName, {
+  return new ChatOpenAI({
     apiKey,
+    model: modelName,
     temperature: LANGCHAIN_TEMPERATURE,
     maxTokens: LANGCHAIN_MAX_TOKENS,
-    timeout: LANGCHAIN_TIMEOUT_MS / 1000, // initChatModel expects seconds
+    timeout: LANGCHAIN_TIMEOUT_MS,
     maxRetries: 0, // Retries handled at application level
   });
 }
