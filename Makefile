@@ -1,4 +1,5 @@
-.PHONY: help install setup dev start ios android lint typecheck test \
+
+.PHONY: help install setup dev start lint typecheck test \
 	contracts-validate contracts-lint-schemas contracts-generate-types \
 	clean format
 
@@ -7,19 +8,17 @@ help:
 	@echo "CastSense - Makefile Commands"
 	@echo ""
 	@echo "Setup & Installation:"
-	@echo "  make install            Install dependencies for mobile and contracts"
+	@echo "  make install            Install dependencies for web and contracts"
 	@echo "  make setup              Alias for install"
 	@echo ""
 	@echo "Development:"
-	@echo "  make start              Start Expo dev server"
+	@echo "  make start              Start Vite dev server"
 	@echo "  make dev                Alias for start"
-	@echo "  make ios                Run on iOS simulator"
-	@echo "  make android            Run on Android emulator"
 	@echo ""
 	@echo "Quality & Testing:"
-	@echo "  make lint               Run ESLint on mobile + schema validation"
-	@echo "  make typecheck          Type-check mobile code with TypeScript"
-	@echo "  make test               Run Jest tests in mobile"
+	@echo "  make lint               Run ESLint on web + schema validation"
+	@echo "  make typecheck          Type-check web code with TypeScript"
+	@echo "  make test               Run tests in web"
 	@echo "  make format             Auto-fix code style (ESLint + Prettier)"
 	@echo ""
 	@echo "Contracts & Types:"
@@ -33,45 +32,37 @@ help:
 
 # Setup & Installation
 install:
-	@echo "Installing dependencies for mobile and contracts..."
-	cd mobile && npm install --legacy-peer-deps
+	@echo "Installing dependencies for web and contracts..."
+	cd web && npm install
 	cd contracts && npm install
 
 setup: install
 
 # Development
 start:
-	@echo "Starting Expo dev server..."
-	cd mobile && npm start
+	@echo "Starting Vite dev server..."
+	cd web && npm run dev
 
 dev: start
 
-ios:
-	@echo "Running on iOS simulator..."
-	cd mobile && npm run ios
-
-android:
-	@echo "Running on Android emulator..."
-	cd mobile && npm run android
-
 # Quality & Testing
 lint:
-	@echo "Linting mobile code..."
-	cd mobile && npm run lint
+	@echo "Linting web code..."
+	cd web && npm run lint
 	@echo "Validating contract schemas..."
 	cd contracts && npm run lint-schemas
 
 typecheck:
-	@echo "Type-checking mobile code..."
-	cd mobile && npm run typecheck
+	@echo "Type-checking web code..."
+	cd web && npm run typecheck
 
 test:
-	@echo "Running mobile tests..."
-	cd mobile && npm test
+	@echo "Running web tests..."
+	cd web && npm run test
 
 format:
-	@echo "Auto-fixing mobile code style..."
-	cd mobile && npm run lint -- --fix
+	@echo "Auto-fixing web code style..."
+	cd web && npm run lint -- --fix
 
 # Contracts & Types
 contracts-validate:
@@ -89,6 +80,6 @@ contracts-generate-types:
 # Cleanup
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf mobile/node_modules mobile/.expo mobile/.cache mobile/dist
+	rm -rf web/node_modules web/dist web/coverage
 	rm -rf contracts/node_modules contracts/dist
 	@echo "Clean complete."

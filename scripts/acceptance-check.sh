@@ -157,39 +157,39 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Mobile Tests (C2, C3, C4)
+# Web Tests (C2, C3, C4)
 # ─────────────────────────────────────────────────────────────────────────────
 
-print_section "Mobile Tests"
+print_section "Web Tests"
 
-cd "$PROJECT_ROOT/mobile"
+cd "$PROJECT_ROOT/web"
 
-echo "Installing mobile dependencies..."
+echo "Installing web dependencies..."
 npm ci --silent 2>/dev/null || npm install --silent
 
-echo "Running mobile tests..."
+echo "Running web tests..."
 if npm test -- --passWithNoTests 2>&1; then
     record_result "C2: Metadata schema conformance" "PASS"
     record_result "C3: Overlay aspect ratio rendering" "PASS"
     record_result "C4: Tap zone selection" "PASS"
-    echo -e "${GREEN}Mobile tests passed${NC}"
+    echo -e "${GREEN}Web tests passed${NC}"
 else
-    record_result "C2-C4: Mobile tests" "FAIL" "One or more tests failed"
-    echo -e "${RED}Mobile tests failed${NC}"
+    record_result "C2-C4: Web tests" "FAIL" "One or more tests failed"
+    echo -e "${RED}Web tests failed${NC}"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Mobile Type Check
+# Web Type Check
 # ─────────────────────────────────────────────────────────────────────────────
 
-print_section "Mobile Type Check"
+print_section "Web Type Check"
 
 echo "Running TypeScript type check..."
 if npm run typecheck 2>&1; then
-    record_result "Mobile TypeScript" "PASS"
+    record_result "Web TypeScript" "PASS"
     echo -e "${GREEN}Type check passed${NC}"
 else
-    record_result "Mobile TypeScript" "FAIL" "Type errors found"
+    record_result "Web TypeScript" "FAIL" "Type errors found"
     echo -e "${RED}Type check failed${NC}"
 fi
 

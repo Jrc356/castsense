@@ -2,7 +2,7 @@
  * CastSense Type Generation Script
  * 
  * Generates TypeScript types from JSON Schema definitions and outputs
- * to the mobile project.
+ * to the web and backend projects.
  * 
  * Usage: npm run generate-types
  */
@@ -12,7 +12,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const CONTRACTS_DIR = path.resolve(__dirname, '..');
-const MOBILE_TYPES_DIR = path.resolve(CONTRACTS_DIR, '../mobile/src/types');
+const WEB_TYPES_DIR = path.resolve(CONTRACTS_DIR, '../web/src/types');
+const BACKEND_TYPES_DIR = path.resolve(CONTRACTS_DIR, '../backend/src/types');
 
 interface SchemaConfig {
   file: string;
@@ -167,20 +168,31 @@ async function ensureDir(dirPath: string): Promise<void> {
 async function main(): Promise<void> {
   console.log('CastSense Type Generation\n');
   console.log('Contracts directory:', CONTRACTS_DIR);
-  console.log('Mobile types output:', MOBILE_TYPES_DIR);
+  console.log('Web types output:', WEB_TYPES_DIR);
+  console.log('Backend types output:', BACKEND_TYPES_DIR);
   console.log('');
 
   try {
     // Generate types
     const types = await generateTypes();
     
-    // Ensure output directory exists
-    await ensureDir(MOBILE_TYPES_DIR);
-    
-    // Write to mobile
-    const mobileOutput = path.join(MOBILE_TYPES_DIR, 'contracts.ts');
-    fs.writeFileSync(mobileOutput, types, 'utf-8');
-    console.log(`\nWritten: ${mobileOutput}`);
+    // Ensure output directories exist
+    await ensureDir(WEB_TYPES_DIR);
+
+    // Write to web
+    const webOutput = path.join(WEB_TYPES_DIR, 'contracts.ts');
+    fs.writeFileSync(webOutput, types, 'utf-8');
+    console.log(`\nWritten: ${webOutput}`);
+
+    // Write to backend (best effort if backend workspace is writable)
+    try {
+      await ensureDir(BACKEND_TYPES_DIR);
+      const backendOutput = path.join(BACKEND_TYPES_DIR, 'contracts.ts');
+      fs.writeFileSync(backendOutput, types, 'utf-8');
+      console.log(`Written: ${backendOutput}`);
+    } catch (backendError) {
+      console.warn(`Warning: backend type output skipped (${String(backendError)})`);
+    }
     
     console.log('\nType generation complete!');
   } catch (err) {

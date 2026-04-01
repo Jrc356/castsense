@@ -1,0 +1,16 @@
+{
+  "name": "@castsense/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"No backend lint configured\"",
+    "test": "echo \"No backend tests configured\"",
+    "docker:build": "docker build -t castsense-backend ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.3"
+  }
+}

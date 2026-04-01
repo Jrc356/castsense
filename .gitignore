@@ -18,9 +18,9 @@ build/
 .env.development
 .env.staging
 .env.production
-mobile/.env
-mobile/.env.*
-!mobile/.env.example
+web/.env
+web/.env.*
+!web/.env.example
 backend/.env
 !backend/.env.example
 
@@ -46,19 +46,18 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
-# Mobile - React Native
-mobile/ios/Pods/
-mobile/ios/build/
-mobile/android/.gradle/
-mobile/android/app/build/
-mobile/android/build/
-mobile/*.jsbundle
-*.hprof
+# Web
+web/dist/
+web/coverage/
+web/.vite/
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+
+# Local migration safety backup (root-owned)
+backend_root_owned_backup/
 
 # Media uploads (should never be committed)
 uploads/
@@ -66,7 +65,7 @@ media/
 
 # Generated types (can be regenerated)
 # Uncomment if you want to track generated types:
-# mobile/src/types/contracts.ts
+# web/src/types/contracts.ts
 # backend/src/types/contracts.ts
 
 # Package lock files (keep one, remove others if using different package managers)

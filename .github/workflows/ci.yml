@@ -65,15 +65,15 @@ jobs:
           fail_ci_if_error: false
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Mobile Tests
+  # Web Tests
   # ─────────────────────────────────────────────────────────────────────────────
-  mobile:
-    name: Mobile Tests
+  web:
+    name: Web Tests
     runs-on: ubuntu-latest
     
     defaults:
       run:
-        working-directory: mobile
+        working-directory: web
 
     steps:
       - name: Checkout
@@ -84,7 +84,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -105,8 +105,8 @@ jobs:
         uses: codecov/codecov-action@v4
         if: always()
         with:
-          directory: mobile/coverage
-          flags: mobile
+          directory: web/coverage
+          flags: web
           fail_ci_if_error: false
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ jobs:
   acceptance:
     name: Acceptance Summary
     runs-on: ubuntu-latest
-    needs: [backend, mobile, contracts, docker]
+    needs: [backend, web, contracts, docker]
     if: always()
 
     steps:
@@ -175,7 +175,7 @@ jobs:
           echo ""
           echo "Automated Checks:"
           echo "  Backend Tests:     ${{ needs.backend.result }}"
-          echo "  Mobile Tests:      ${{ needs.mobile.result }}"
+          echo "  Web Tests:         ${{ needs.web.result }}"
           echo "  Contract Schemas:  ${{ needs.contracts.result }}"
           echo "  Docker Build:      ${{ needs.docker.result }}"
           echo ""
@@ -192,7 +192,7 @@ jobs:
           
           # Fail if any required job failed
           if [[ "${{ needs.backend.result }}" == "failure" || \
-                "${{ needs.mobile.result }}" == "failure" || \
+                "${{ needs.web.result }}" == "failure" || \
                 "${{ needs.contracts.result }}" == "failure" || \
                 "${{ needs.docker.result }}" == "failure" ]]; then
             echo "❌ One or more acceptance checks failed"

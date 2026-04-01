@@ -15,8 +15,8 @@
       "properties": {
         "platform": {
           "type": "string",
-          "enum": ["ios", "android"],
-          "description": "Mobile platform"
+          "enum": ["web"],
+          "description": "Client platform"
         },
         "app_version": {
           "type": "string",
