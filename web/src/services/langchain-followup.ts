@@ -124,7 +124,7 @@ export async function handleFollowUpQuestion(
     console.log(`[LangChain Follow-Up] Invoking model: ${modelName}`);
     
     // 4. Call model
-    const model = createChatModel(apiKey, modelName);
+    const model = await createChatModel(apiKey, modelName);
     const response = await model.invoke(messages);
     
     // 5. Extract response text

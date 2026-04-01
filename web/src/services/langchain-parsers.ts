@@ -1,12 +1,11 @@
 /**
  * LangChain Structured Output Parsers
- * 
- * Validates AI output using LangChain's StructuredOutputParser with Zod schemas.
- * Replaces AJV-based validation while preserving ValidationResult interface.
+ *
+ * Provides Zod schemas for validating CastSense AI output and domain-level
+ * geometry/integrity checks used alongside model.withStructuredOutput().
  */
 
 import { z } from 'zod';
-import { StructuredOutputParser } from '@langchain/core/output_parsers';
 
 // ============================================================================
 // Validation Types (formerly from validation.ts)
@@ -143,144 +142,7 @@ export const CastSenseResultSchema = z.object({
 export type CastSenseResult = z.infer<typeof CastSenseResultSchema>;
 
 // ============================================================================
-// Parser Setup
-// ============================================================================
-
-let parser: StructuredOutputParser<any> | null = null;
-
-/**
- * Get or create the structured output parser
- */
-function getParser(): StructuredOutputParser<any> {
-  if (!parser) {
-    parser = StructuredOutputParser.fromZodSchema(CastSenseResultSchema);
-  }
-  return parser;
-}
-
-/**
- * Get format instructions for the AI prompt
- * Use this in your prompt templates to instruct the AI on output format
- * 
- * @example
- * const instructions = getFormatInstructions();
- * const prompt = `Analyze this fishing spot.\n\n${instructions}`;
- */
-export function getFormatInstructions(): string {
-  const p = getParser();
-  return p.getFormatInstructions();
-}
-
-// ============================================================================
-// JSON Extraction (preserved from validation.ts)
-// ============================================================================
-
-/**
- * Extract JSON from AI response string
- * Handles pure JSON, markdown code blocks, and JSON wrapped in prose
- * 
- * NOTE: This is preserved from the original validation.ts for compatibility.
- * LangChain's OutputFixingParser can handle this, but we keep the existing
- * logic for now to maintain behavior consistency.
- */
-function extractJSON(rawResponse: string): string | null {
-  if (!rawResponse || typeof rawResponse !== 'string') {
-    return null;
-  }
-
-  const trimmed = rawResponse.trim();
-
-  // Best case: pure JSON
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    const isObject = trimmed.startsWith('{');
-    const openBracket = isObject ? '{' : '[';
-    const closeBracket = isObject ? '}' : ']';
-
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-
-    for (let i = 0; i < trimmed.length; i++) {
-      const char = trimmed[i];
-
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
-
-      if (inString) continue;
-
-      if (char === openBracket) depth++;
-      if (char === closeBracket) depth--;
-
-      if (depth === 0) {
-        return trimmed.substring(0, i + 1);
-      }
-    }
-
-    return trimmed;
-  }
-
-  // Try markdown code blocks
-  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch?.[1]) {
-    console.warn('[LangChain Parser] Found JSON wrapped in markdown code block');
-    return extractJSON(codeBlockMatch[1]);
-  }
-
-  // Try to find JSON anywhere in response
-  const jsonStartObj = trimmed.indexOf('{');
-  const jsonStartArr = trimmed.indexOf('[');
-
-  let jsonStart = -1;
-  if (jsonStartObj >= 0 && jsonStartArr >= 0) {
-    jsonStart = Math.min(jsonStartObj, jsonStartArr);
-  } else if (jsonStartObj >= 0) {
-    jsonStart = jsonStartObj;
-  } else if (jsonStartArr >= 0) {
-    jsonStart = jsonStartArr;
-  }
-
-  if (jsonStart > 0) {
-    console.warn('[LangChain Parser] Found JSON with leading prose');
-    return extractJSON(trimmed.substring(jsonStart));
-  }
-
-  return null;
-}
-
-// ============================================================================
-// Zod Error Formatting
-// ============================================================================
-
-/**
- * Convert Zod validation errors to ValidationError format
- */
-function formatZodErrors(zodError: z.ZodError): ValidationError[] {
-  return zodError.issues.map(issue => ({
-    type: 'schema' as const,
-    message: issue.message,
-    path: issue.path.join('.'),
-    details: {
-      code: issue.code,
-      expected: 'expected' in issue ? issue.expected : undefined,
-      received: 'received' in issue ? issue.received : undefined
-    }
-  }));
-}
-
-// ============================================================================
-// Custom Geometry Validation (preserved from validation.ts)
+// Custom Geometry Validation
 // ============================================================================
 
 /**
@@ -293,7 +155,7 @@ function formatZodErrors(zodError: z.ZodError): ValidationError[] {
  * @param result - Parsed and schema-valid result
  * @returns Array of geometry validation errors
  */
-function validateGeometry(result: CastSenseResult): ValidationError[] {
+export function validateGeometry(result: CastSenseResult): ValidationError[] {
   const errors: ValidationError[] = [];
   const zones = result.zones || [];
   const frame = result.analysis_frame;
@@ -369,157 +231,6 @@ function validateGeometry(result: CastSenseResult): ValidationError[] {
   });
 
   return errors;
-}
-
-// ============================================================================
-// Validation Functions
-// ============================================================================
-
-/**
- * Parse and validate AI result using LangChain StructuredOutputParser
- * 
- * This is the main validation function that replaces `validateAIResult` from
- * validation.ts. It uses Zod schema validation via LangChain instead of AJV.
- * Includes error recovery: if structured parser fails, tries manual JSON extraction + Zod validation.
- * 
- * @param rawResponse - Raw string response from AI model
- * @returns ValidationResult with parsed data and errors (compatible with existing code)
- * 
- * @example
- * const result = await parseAIResult(aiResponse);
- * if (!result.valid) {
- *   console.error('Validation failed:', result.errors);
- * } else {
- *   const data = result.parsed as CastSenseResult;
- *   // Use validated data
- * }
- */
-export async function parseAIResult(rawResponse: string): Promise<ValidationResult> {
-  const errors: ValidationError[] = [];
-
-  // Step 1: Extract JSON
-  const jsonString = extractJSON(rawResponse);
-  if (!jsonString) {
-    return {
-      valid: false,
-      errors: [{
-        type: 'parse',
-        message: 'No valid JSON found in response'
-      }]
-    };
-  }
-
-  // Step 2: Try LangChain StructuredOutputParser first
-  const p = getParser();
-  let parsed: CastSenseResult;
-
-  try {
-    parsed = await p.parse(jsonString) as CastSenseResult;
-  } catch (parseError) {
-    // Error recovery: try fallback to manual JSON parsing + Zod validation
-    console.warn('[LangChain Parser] Structured parse failed, trying fallback', parseError);
-    
-    // Parse JSON manually
-    let jsonData: unknown;
-    try {
-      jsonData = JSON.parse(jsonString);
-    } catch (jsonError) {
-      console.error('[LangChain Parser] Both structured and manual JSON parse failed');
-      return {
-        valid: false,
-        errors: [{
-          type: 'parse',
-          message: `JSON parse error: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`,
-          details: { structuredError: parseError, jsonError }
-        }]
-      };
-    }
-
-    // Validate with Zod schema directly
-    const zodResult = CastSenseResultSchema.safeParse(jsonData);
-    if (!zodResult.success) {
-      console.error('[LangChain Parser] Both structured and fallback validation failed');
-      return {
-        valid: false,
-        errors: formatZodErrors(zodResult.error)
-      };
-    }
-
-    // Fallback succeeded
-    console.log('[LangChain Parser] Fallback validation succeeded');
-    parsed = zodResult.data;
-  }
-
-  // Step 3: Custom geometry validation
-  const geometryErrors = validateGeometry(parsed);
-  errors.push(...geometryErrors);
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    parsed
-  };
-}
-
-/**
- * Synchronous version of parseAIResult for backward compatibility
- * 
- * NOTE: LangChain's parser is async, but we can make it appear synchronous
- * for simple cases. This is provided for drop-in replacement of the old
- * validateAIResult function. Includes error recovery with manual JSON parsing.
- * 
- * @param rawResponse - Raw string response from AI model
- * @returns ValidationResult (throws if async parsing is required)
- */
-export function parseAIResultSync(rawResponse: string): ValidationResult {
-  const errors: ValidationError[] = [];
-
-  // Step 1: Extract JSON
-  const jsonString = extractJSON(rawResponse);
-  if (!jsonString) {
-    return {
-      valid: false,
-      errors: [{
-        type: 'parse',
-        message: 'No valid JSON found in response'
-      }]
-    };
-  }
-
-  // Step 2: Parse JSON manually first
-  let jsonData: unknown;
-  try {
-    jsonData = JSON.parse(jsonString);
-  } catch (error) {
-    return {
-      valid: false,
-      errors: [{
-        type: 'parse',
-        message: `JSON parse error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }]
-    };
-  }
-
-  // Step 3: Validate with Zod schema
-  const result = CastSenseResultSchema.safeParse(jsonData);
-  
-  if (!result.success) {
-    // Convert Zod errors using helper
-    return {
-      valid: false,
-      errors: formatZodErrors(result.error)
-    };
-  }
-
-  // Step 4: Custom geometry validation
-  const geometryErrors = validateGeometry(result.data);
-  errors.push(...geometryErrors);
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    parsed: result.data
-  };
 }
 
 /**

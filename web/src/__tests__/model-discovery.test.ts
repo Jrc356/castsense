@@ -1,7 +1,7 @@
 import { fetchAvailableModels } from '../services/model-discovery';
 
 // Mock fetch
-global.fetch = jest.fn();
+(globalThis as any).fetch = jest.fn();
 
 const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
 

@@ -271,11 +271,10 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
       };
     }
 
-    // Use LangChain result (pre-validated)
+    // Use LangChain result (pre-validated by withStructuredOutput + Zod)
     const aiResult = {
       model: langchainResult.model,
-      result: langchainResult.data,
-      rawResponse: langchainResult.rawResponse
+      result: langchainResult.data
     };
     const modelUsed = langchainResult.model;
 

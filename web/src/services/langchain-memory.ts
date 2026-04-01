@@ -13,6 +13,7 @@
 
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
+import { InMemoryChatMessageHistory } from '@langchain/core/chat_history';
 import type { CastSenseResult } from './langchain-parsers';
 
 // ============================================================================
@@ -20,34 +21,10 @@ import type { CastSenseResult } from './langchain-parsers';
 // ============================================================================
 
 /**
- * Simple in-memory chat history store for a single session.
- * Implements message storage without external dependencies.
- */
-class InMemoryChatHistory {
-  private messages: BaseMessage[] = [];
-
-  async addMessage(message: BaseMessage): Promise<void> {
-    this.messages.push(message);
-  }
-
-  async addMessages(messages: BaseMessage[]): Promise<void> {
-    this.messages.push(...messages);
-  }
-
-  async getMessages(): Promise<BaseMessage[]> {
-    return this.messages;
-  }
-
-  async clear(): Promise<void> {
-    this.messages = [];
-  }
-}
-
-/**
  * Session-based memory store.
- * Each session ID maps to its own InMemoryChatHistory instance.
+ * Each session ID maps to its own InMemoryChatMessageHistory instance.
  */
-const memoryStore = new Map<string, InMemoryChatHistory>();
+const memoryStore = new Map<string, InMemoryChatMessageHistory>();
 
 /**
  * Memory statistics for debugging
@@ -92,22 +69,22 @@ export function createSessionId(): string {
 
 /**
  * Create or retrieve conversation memory for a session.
- * 
- * Creates a new InMemoryChatHistory instance if session doesn't exist.
- * 
+ *
+ * Creates a new InMemoryChatMessageHistory instance if session doesn't exist.
+ *
  * @param sessionId - Unique session identifier
- * @returns InMemoryChatHistory instance for the session
- * 
+ * @returns InMemoryChatMessageHistory instance for the session
+ *
  * @example
  * ```typescript
  * const memory = createConversationMemory('session-123');
  * await memory.addMessage(new HumanMessage('User question'));
  * ```
  */
-export function createConversationMemory(sessionId: string): InMemoryChatHistory {
+export function createConversationMemory(sessionId: string): InMemoryChatMessageHistory {
   if (!memoryStore.has(sessionId)) {
     console.log(`[LangChain Memory] Creating new memory for session: ${sessionId}`);
-    memoryStore.set(sessionId, new InMemoryChatHistory());
+    memoryStore.set(sessionId, new InMemoryChatMessageHistory());
   }
   
   return memoryStore.get(sessionId)!;

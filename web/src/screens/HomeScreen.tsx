@@ -34,6 +34,9 @@ export function HomeScreen(): React.JSX.Element {
   const [platform, setPlatform] = useState<'shore' | 'kayak' | 'boat' | ''>((state.platformContext as 'shore' | 'kayak' | 'boat' | null) ?? '')
   const [gear, setGear] = useState<'spinning' | 'baitcasting' | 'fly' | 'unknown'>(state.gearType)
   const [notes, setNotes] = useState(state.userConstraints.notes ?? '')
+  const [locationMode, setLocationMode] = useState<'device' | 'manual'>('device')
+  const [manualLat, setManualLat] = useState('')
+  const [manualLon, setManualLon] = useState('')
   const [busy, setBusy] = useState(false)
 
   const selectedModelRef = useRef(state.selectedModel)
@@ -83,15 +86,26 @@ export function HomeScreen(): React.JSX.Element {
       return
     }
 
-    const location = await getCurrentLocation()
-    if (!location) {
-      handleError({
-        code: 'NO_GPS',
-        message: 'Location is unavailable. Enable location permission and retry.',
-        retryable: true,
-      })
-      navigate('/error')
-      return
+    let location
+    if (locationMode === 'manual') {
+      const lat = parseFloat(manualLat)
+      const lon = parseFloat(manualLon)
+      if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        window.alert('Enter valid coordinates. Latitude must be -90 to 90, longitude -180 to 180.')
+        return
+      }
+      location = { lat, lon }
+    } else {
+      location = await getCurrentLocation()
+      if (!location) {
+        handleError({
+          code: 'NO_GPS',
+          message: 'Location is unavailable. Enable location permission and retry.',
+          retryable: true,
+        })
+        navigate('/error')
+        return
+      }
     }
 
     try {
@@ -196,6 +210,43 @@ export function HomeScreen(): React.JSX.Element {
             <option value="fly">Fly</option>
           </select>
         </label>
+
+        <label>
+          Location
+          <select value={locationMode} onChange={(event) => setLocationMode(event.target.value as 'device' | 'manual')}>
+            <option value="device">Device (GPS)</option>
+            <option value="manual">Enter manually</option>
+          </select>
+        </label>
+
+        {locationMode === 'manual' ? (
+          <>
+            <label>
+              Latitude
+              <input
+                type="number"
+                value={manualLat}
+                onChange={(event) => setManualLat(event.target.value)}
+                placeholder="e.g. 40.7128"
+                min={-90}
+                max={90}
+                step="any"
+              />
+            </label>
+            <label>
+              Longitude
+              <input
+                type="number"
+                value={manualLon}
+                onChange={(event) => setManualLon(event.target.value)}
+                placeholder="e.g. -74.0060"
+                min={-180}
+                max={180}
+                step="any"
+              />
+            </label>
+          </>
+        ) : null}
 
         <label>
           Model

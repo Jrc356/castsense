@@ -21,7 +21,8 @@ import {
   type AnalysisOptions 
 } from './langchain-prompts';
 import { 
-  parseAIResult,
+  CastSenseResultSchema,
+  validateGeometry,
   type CastSenseResult,
   type ValidationResult
 } from './langchain-parsers';
@@ -40,7 +41,7 @@ import {
  * Maps to existing app error codes for consistency.
  */
 export type LangChainErrorCode = 
-  | 'AI_TIMEOUT'         // Request exceeded 30s timeout
+  | 'AI_TIMEOUT'         // Request exceeded 120s timeout
   | 'AI_RATE_LIMITED'    // OpenAI rate limit hit
   | 'AI_INVALID_KEY'     // Invalid or unauthorized API key
   | 'AI_NETWORK_ERROR'   // Network/connection failure
@@ -116,10 +117,7 @@ export interface AnalysisSuccess {
   /** Model name used for analysis */
   model: string;
   
-  /** Raw text response from AI (for debugging) */
-  rawResponse: string;
-  
-  /** Validation report with any warnings */
+  /** Validation report with any geometry/integrity warnings */
   validation: ValidationResult;
 }
 
@@ -324,9 +322,9 @@ export async function analyzeWithLangChain(
     });
 
     // =========================================================================
-    // Step 1: Initialize ChatOpenAI model
+    // Step 1: Initialize model
     // =========================================================================
-    const chatModel = createChatModel(apiKey, modelName);
+    const chatModel = await createChatModel(apiKey, modelName);
 
     // =========================================================================
     // Step 2: Load conversation history (if session provided)
@@ -355,7 +353,7 @@ export async function analyzeWithLangChain(
     });
 
     // =========================================================================
-    // Step 3: Create vision message with image
+    // Step 3: Create vision message with image (standard cross-provider format)
     // =========================================================================
     const message = new HumanMessage({
       content: [
@@ -364,28 +362,25 @@ export async function analyzeWithLangChain(
           text: promptText
         },
         {
-          type: 'image_url',
-          image_url: {
-            url: `data:image/jpeg;base64,${imageBase64}`,
-            detail: 'high' // High detail for fishing structure analysis
-          }
+          type: 'image',
+          source_type: 'base64',
+          data: imageBase64,
+          mimeType: 'image/jpeg',
+          detail: 'high' // OpenAI-specific hint for high-detail analysis
         }
       ]
     });
 
     // =========================================================================
-    // Step 4: Invoke model (with 30s timeout from config)
+    // Step 4: Invoke model with structured output (Zod schema enforced)
+    // withStructuredOutput uses OpenAI's native structured output (JSON mode /
+    // tool calling) — eliminates manual JSON extraction and parsing.
     // =========================================================================
-    console.log('[LangChain Chain] Invoking OpenAI vision model...');
-    const aiResponse = await chatModel.invoke([message]);
+    console.log('[LangChain Chain] Invoking model with structured output...');
+    const structuredModel = chatModel.withStructuredOutput(CastSenseResultSchema);
+    const parsedData = await structuredModel.invoke([message]) as CastSenseResult;
 
-    // Extract text content from response
-    const responseContent = 
-      typeof aiResponse.content === 'string' 
-        ? aiResponse.content 
-        : JSON.stringify(aiResponse.content);
-
-    if (!responseContent || responseContent.trim().length === 0) {
+    if (!parsedData) {
       throw new LangChainError(
         'Empty response from AI model',
         'AI_PROVIDER_ERROR',
@@ -393,45 +388,46 @@ export async function analyzeWithLangChain(
       );
     }
 
-    console.log('[LangChain Chain] Received response', {
-      responseLength: responseContent.length,
-      model: modelName
+    console.log('[LangChain Chain] Received structured response', {
+      model: modelName,
+      zones: parsedData.zones?.length ?? 0,
+      tactics: parsedData.tactics?.length ?? 0
     });
 
     // =========================================================================
-    // Step 5: Parse and validate response
+    // Step 5: Post-parse geometry & integrity validation
+    // Zod schema covers coordinate bounds and type constraints; this adds
+    // domain-level checks (zone-tactic consistency, etc.)
     // =========================================================================
-    const validationResult = await parseAIResult(responseContent);
+    const geometryErrors = validateGeometry(parsedData);
+    const validationResult: ValidationResult = {
+      valid: geometryErrors.length === 0,
+      errors: geometryErrors,
+      parsed: parsedData
+    };
 
-    if (!validationResult.valid || !validationResult.parsed) {
-      console.error('[LangChain Chain] Validation failed', {
+    if (!validationResult.valid) {
+      console.warn('[LangChain Chain] Geometry/integrity validation warnings', {
         errors: validationResult.errors
       });
-
-      throw new LangChainError(
-        `AI response validation failed: ${validationResult.errors.map(e => e.message).join('; ')}`,
-        'AI_PARSE_ERROR',
-        true, // Retryable - model might generate valid output on retry
-        { validationErrors: validationResult.errors }
-      );
     }
 
     // =========================================================================
     // Step 6: Inject analysis_frame metadata
     // =========================================================================
-    const parsedData = validationResult.parsed as CastSenseResult;
-    
-    // Add or update analysis_frame with actual image dimensions
-    parsedData.analysis_frame = {
-      type: 'photo',
-      width_px: imageWidth,
-      height_px: imageHeight
+    const parsedDataWithFrame = {
+      ...parsedData,
+      analysis_frame: {
+        type: 'photo' as const,
+        width_px: imageWidth,
+        height_px: imageHeight
+      }
     };
 
     console.log('[LangChain Chain] Analysis complete', {
-      zones: parsedData.zones.length,
-      tactics: parsedData.tactics.length,
-      hasErrors: validationResult.errors.length > 0
+      zones: parsedDataWithFrame.zones.length,
+      tactics: parsedDataWithFrame.tactics.length,
+      hasWarnings: validationResult.errors.length > 0
     });
 
     // =========================================================================
@@ -441,7 +437,7 @@ export async function analyzeWithLangChain(
       await addToMemory(
         sessionId,
         promptText, // Store the full prompt as user message
-        parsedData
+        parsedDataWithFrame
       );
       console.log('[LangChain Chain] Stored result in memory for session:', sessionId);
     }
@@ -451,10 +447,9 @@ export async function analyzeWithLangChain(
     // =========================================================================
     return {
       success: true,
-      data: parsedData,
+      data: parsedDataWithFrame,
       model: modelName,
-      rawResponse: responseContent,
-      validation: validationResult
+      validation: { ...validationResult, parsed: parsedDataWithFrame }
     };
 
   } catch (error) {

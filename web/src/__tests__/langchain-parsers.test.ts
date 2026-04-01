@@ -1,12 +1,13 @@
 /**
  * Tests for LangChain Structured Output Parsers
+ *
+ * Tests Zod schema validation and geometry/integrity checks used by
+ * model.withStructuredOutput(CastSenseResultSchema).
  */
 
 import {
-  parseAIResult,
-  parseAIResultSync,
   hasValidStructure,
-  getFormatInstructions,
+  validateGeometry,
   CastSenseResultSchema,
   type CastSenseResult
 } from '../services/langchain-parsers';
@@ -87,8 +88,6 @@ describe('LangChain Parsers', () => {
       ]
     }
   };
-
-  const validResultJSON = JSON.stringify(validResult, null, 2);
 
   // ============================================================================
   // Schema Tests
@@ -181,162 +180,35 @@ describe('LangChain Parsers', () => {
   });
 
   // ============================================================================
-  // JSON Extraction Tests
-  // ============================================================================
-
-  describe('JSON Extraction', () => {
-    it('should parse pure JSON', async () => {
-      const result = await parseAIResult(validResultJSON);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-      expect(result.parsed).toBeDefined();
-    });
-
-    it('should extract JSON from markdown code block', async () => {
-      const wrapped = `\`\`\`json\n${validResultJSON}\n\`\`\``;
-      const result = await parseAIResult(wrapped);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should extract JSON from markdown code block without language', async () => {
-      const wrapped = `\`\`\`\n${validResultJSON}\n\`\`\``;
-      const result = await parseAIResult(wrapped);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should extract JSON with leading prose', async () => {
-      const withProse = `Here is the analysis result:\n\n${validResultJSON}`;
-      const result = await parseAIResult(withProse);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should extract JSON with trailing prose', async () => {
-      const withProse = `${validResultJSON}\n\nHope this helps!`;
-      const result = await parseAIResult(withProse);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should handle nested JSON objects', async () => {
-      const result = await parseAIResult(validResultJSON);
-      expect(result.valid).toBe(true);
-      const parsed = result.parsed as CastSenseResult;
-      expect(parsed.zones.length).toBeGreaterThan(0);
-      expect(parsed.zones[0]!.cast_arrow.start).toEqual([0.2, 0.25]);
-    });
-
-    it('should return parse error for invalid JSON', async () => {
-      const invalid = '{ "mode": "general", invalid }';
-      const result = await parseAIResult(invalid);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('parse'); // Malformed JSON returns parse error
-    });
-
-    it('should return parse error for empty string', async () => {
-      const result = await parseAIResult('');
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('parse');
-      expect(result.errors[0]!.message).toContain('No valid JSON');
-    });
-
-    it('should return parse error for non-JSON text', async () => {
-      const result = await parseAIResult('This is just plain text without JSON');
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('parse');
-    });
-  });
-
-  // ============================================================================
-  // Geometry Validation Tests
+  // Geometry Validation Tests (validateGeometry)
   // ============================================================================
 
   describe('Custom Geometry Validation', () => {
-    it('should pass for valid normalized coordinates', async () => {
-      const result = await parseAIResult(validResultJSON);
-      expect(result.valid).toBe(true);
-      expect(result.errors.filter(e => e.type === 'geometry')).toHaveLength(0);
+    it('should return no errors for valid result', () => {
+      const errors = validateGeometry(validResult);
+      expect(errors.filter(e => e.type === 'geometry')).toHaveLength(0);
+      expect(errors.filter(e => e.type === 'integrity')).toHaveLength(0);
     });
 
-    it('should detect polygon points outside normalized bounds', async () => {
-      const invalid = {
-        ...validResult,
-        zones: [{
-          ...validResult.zones[0],
-          polygon: [[0.5, 0.5], [1.5, 0.5], [0.5, 0.8]] // 1.5 > 1
-        }]
-      };
-      
-      // This should fail schema validation first
-      const invalidJSON = JSON.stringify(invalid);
-      const result = await parseAIResult(invalidJSON);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
-    });
-
-    it('should detect arrow points outside normalized bounds', async () => {
-      const invalid = {
-        ...validResult,
-        zones: [{
-          ...validResult.zones[0],
-          cast_arrow: {
-            start: [0.5, 0.5],
-            end: [1.2, 0.5] // 1.2 > 1
-          }
-        }]
-      };
-      
-      const invalidJSON = JSON.stringify(invalid);
-      const result = await parseAIResult(invalidJSON);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
-    });
-
-    it('should validate retrieve path points', async () => {
-      const withRetrievePath = {
-        ...validResult,
-        zones: [{
-          ...validResult.zones[0],
-          retrieve_path: [
-            [0.2, 0.3],
-            [0.3, 0.4],
-            [0.4, 0.5]
-          ]
-        }]
-      };
-      
-      const result = await parseAIResult(JSON.stringify(withRetrievePath));
-      expect(result.valid).toBe(true);
-    });
-
-    it('should detect zone-tactics consistency errors', async () => {
-      const inconsistent = {
+    it('should detect zone-tactics consistency errors', () => {
+      const inconsistent: CastSenseResult = {
         ...validResult,
         tactics: [
           {
-            ...validResult.tactics[0],
+            ...validResult.tactics[0]!,
             zone_id: 'NONEXISTENT' // References non-existent zone
           }
         ]
       };
-      
-      const result = await parseAIResult(JSON.stringify(inconsistent));
-      expect(result.valid).toBe(false);
-      
-      const integrityErrors = result.errors.filter(e => e.type === 'integrity');
+
+      const errors = validateGeometry(inconsistent);
+      const integrityErrors = errors.filter(e => e.type === 'integrity');
       expect(integrityErrors.length).toBeGreaterThan(0);
       expect(integrityErrors[0]!.message).toContain('non-existent zone_id');
     });
 
-    it('should allow zones without tactics (warn only)', async () => {
-      const zoneWithoutTactics = {
+    it('should allow zones without tactics (warn only, no error)', () => {
+      const zoneWithoutTactics: CastSenseResult = {
         ...validResult,
         zones: [
           ...validResult.zones,
@@ -349,49 +221,17 @@ describe('LangChain Parsers', () => {
             cast_arrow: { start: [0.6, 0.55], end: [0.65, 0.6] }
           }
         ]
-        // tactics still only references Z1
+        // tactics only references Z1
       };
-      
-      const result = await parseAIResult(JSON.stringify(zoneWithoutTactics));
-      // Should be valid (no integrity error), but logs warning
-      expect(result.valid).toBe(true);
-    });
-  });
 
-  // ============================================================================
-  // Synchronous Parser Tests
-  // ============================================================================
-
-  describe('parseAIResultSync', () => {
-    it('should parse valid JSON synchronously', () => {
-      const result = parseAIResultSync(validResultJSON);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-      expect(result.parsed).toBeDefined();
+      const errors = validateGeometry(zoneWithoutTactics);
+      const integrityErrors = errors.filter(e => e.type === 'integrity');
+      expect(integrityErrors).toHaveLength(0);
     });
 
-    it('should handle schema validation errors', () => {
-      const invalid = { mode: 'general' }; // Missing required fields
-      const result = parseAIResultSync(JSON.stringify(invalid));
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
-    });
-
-    it('should extract JSON from markdown', () => {
-      const wrapped = `\`\`\`json\n${validResultJSON}\n\`\`\``;
-      const result = parseAIResultSync(wrapped);
-      expect(result.valid).toBe(true);
-    });
-
-    it('should perform geometry validation', () => {
-      const inconsistent = {
-        ...validResult,
-        tactics: [{ ...validResult.tactics[0], zone_id: 'BAD' }]
-      };
-      const result = parseAIResultSync(JSON.stringify(inconsistent));
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.type === 'integrity')).toBe(true);
+    it('should return empty errors for minimal valid result', () => {
+      const minimal: CastSenseResult = { mode: 'general', zones: [], tactics: [] };
+      expect(validateGeometry(minimal)).toHaveLength(0);
     });
   });
 
@@ -429,69 +269,44 @@ describe('LangChain Parsers', () => {
     });
   });
 
-  describe('getFormatInstructions', () => {
-    it('should return format instructions string', () => {
-      const instructions = getFormatInstructions();
-      expect(typeof instructions).toBe('string');
-      expect(instructions.length).toBeGreaterThan(0);
-      // Should contain schema information
-      expect(instructions.toLowerCase()).toContain('json');
-    });
-
-    it('should be usable in prompts', () => {
-      const instructions = getFormatInstructions();
-      const prompt = `Analyze this fishing spot.\n\n${instructions}`;
-      expect(prompt).toContain(instructions);
-    });
-  });
-
   // ============================================================================
-  // Edge Cases
+  // Edge Cases (Schema level)
   // ============================================================================
 
   describe('Edge Cases', () => {
-    it('should handle minimal valid result', async () => {
-      const minimal: CastSenseResult = {
-        mode: 'general',
-        zones: [],
-        tactics: []
-      };
-      const result = await parseAIResult(JSON.stringify(minimal));
-      expect(result.valid).toBe(true);
+    it('should accept minimal valid result', () => {
+      const minimal: CastSenseResult = { mode: 'general', zones: [], tactics: [] };
+      expect(CastSenseResultSchema.safeParse(minimal).success).toBe(true);
     });
 
-    it('should handle maximum zones (10)', async () => {
+    it('should accept maximum zones (10)', () => {
       const maxZones = {
         ...validResult,
         zones: Array.from({ length: 10 }, (_, i) => ({
-          ...validResult.zones[0],
+          ...validResult.zones[0]!,
           zone_id: `Z${i + 1}`,
           label: `Zone ${i + 1}`
         })),
         tactics: Array.from({ length: 10 }, (_, i) => ({
-          ...validResult.tactics[0],
+          ...validResult.tactics[0]!,
           zone_id: `Z${i + 1}`
         }))
       };
-      const result = await parseAIResult(JSON.stringify(maxZones));
-      expect(result.valid).toBe(true);
+      expect(CastSenseResultSchema.safeParse(maxZones).success).toBe(true);
     });
 
-    it('should reject more than 10 zones', async () => {
+    it('should reject more than 10 zones', () => {
       const tooManyZones = {
         ...validResult,
         zones: Array.from({ length: 11 }, (_, i) => ({
-          ...validResult.zones[0],
+          ...validResult.zones[0]!,
           zone_id: `Z${i + 1}`
         }))
       };
-      const result = await parseAIResult(JSON.stringify(tooManyZones));
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
+      expect(CastSenseResultSchema.safeParse(tooManyZones).success).toBe(false);
     });
 
-    it('should handle video frame metadata', async () => {
+    it('should accept video frame metadata', () => {
       const videoResult = {
         ...validResult,
         analysis_frame: {
@@ -502,199 +317,34 @@ describe('LangChain Parsers', () => {
           frame_timestamp_ms: 1500
         }
       };
-      const result = await parseAIResult(JSON.stringify(videoResult));
-      expect(result.valid).toBe(true);
-      const parsed = result.parsed as CastSenseResult;
-      expect(parsed.analysis_frame?.type).toBe('video_frame');
-      expect(parsed.analysis_frame?.selected_frame_index).toBe(5);
+      const result = CastSenseResultSchema.safeParse(videoResult);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.analysis_frame?.type).toBe('video_frame');
+        expect(result.data.analysis_frame?.selected_frame_index).toBe(5);
+      }
     });
 
-    it('should handle empty arrays for optional fields', async () => {
+    it('should accept empty arrays for optional fields', () => {
       const emptyOptionals = {
         ...validResult,
         likely_species: [],
         conditions_summary: [],
         plan_summary: []
       };
-      const result = await parseAIResult(JSON.stringify(emptyOptionals));
-      expect(result.valid).toBe(true);
+      expect(CastSenseResultSchema.safeParse(emptyOptionals).success).toBe(true);
     });
 
-    it('should handle all zone style hints', async () => {
-      const hints = ['cover', 'structure', 'current', 'depth_edge', 'shade', 'inflow', 'unknown'];
-      
+    it('should accept all zone style hints', () => {
+      const hints = ['cover', 'structure', 'current', 'depth_edge', 'shade', 'inflow', 'unknown'] as const;
       for (const hint of hints) {
         const withHint = {
           ...validResult,
-          zones: [{
-            ...validResult.zones[0],
-            style: { hint: hint as any }
-          }]
+          zones: [{ ...validResult.zones[0]!, style: { hint } }]
         };
-        const result = await parseAIResult(JSON.stringify(withHint));
-        expect(result.valid).toBe(true);
+        expect(CastSenseResultSchema.safeParse(withHint).success).toBe(true);
       }
     });
   });
-
-  // ============================================================================
-  // Error Recovery Tests
-  // ============================================================================
-
-  describe('Error Recovery', () => {
-    it('should recover when structured parser fails but JSON is valid', async () => {
-      // Simulate a case where structured parser might fail but JSON is valid
-      // We'll use a mocked error scenario by creating malformed format instructions response
-      const jsonWithExtraNoise = `
-        Note: The following is the analysis result.
-        
-        ${validResultJSON}
-        
-        Additional commentary here.
-      `;
-      
-      const result = await parseAIResult(jsonWithExtraNoise);
-      expect(result.valid).toBe(true);
-      expect(result.parsed).toBeDefined();
-      const parsed = result.parsed as CastSenseResult;
-      expect(parsed.mode).toBe('general');
-    });
-
-    it('should log warning when falling back to manual parsing', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-      
-      // Create a response that might confuse the structured parser
-      const confusingResponse = `Here's the result:\n\n${validResultJSON}`;
-      await parseAIResult(confusingResponse);
-      
-      consoleSpy.mockRestore();
-    });
-
-    it('should log error when both structured and fallback fail', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      
-      const invalidJSON = '{ "mode": "general", "zones": "not-an-array" }';
-      const result = await parseAIResult(invalidJSON);
-      
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      
-      consoleSpy.mockRestore();
-    });
-
-    it('should return validation errors instead of throwing', async () => {
-      const badSchema = JSON.stringify({
-        mode: 'invalid_mode',
-        zones: [],
-        tactics: []
-      });
-      
-      // Should not throw, should return ValidationResult with errors
-      const result = await parseAIResult(badSchema);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
-    });
-
-    it('should handle JSON parse errors gracefully', async () => {
-      const malformedJSON = '{ "mode": "general", invalid syntax }';
-      
-      const result = await parseAIResult(malformedJSON);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('parse');
-      expect(result.errors[0]!.message).toContain('JSON parse error');
-    });
-
-    it('should preserve geometry errors during fallback', async () => {
-      const invalidGeometry = {
-        ...validResult,
-        tactics: [
-          {
-            ...validResult.tactics[0],
-            zone_id: 'NONEXISTENT'
-          }
-        ]
-      };
-      
-      const wrapped = `Analysis complete:\n\n${JSON.stringify(invalidGeometry)}`;
-      const result = await parseAIResult(wrapped);
-      
-      expect(result.valid).toBe(false);
-      const integrityErrors = result.errors.filter(e => e.type === 'integrity');
-      expect(integrityErrors.length).toBeGreaterThan(0);
-    });
-
-    it('should handle sync parser with error recovery', () => {
-      const invalidSchema = JSON.stringify({
-        mode: 'general',
-        // Missing required fields
-      });
-      
-      const result = parseAIResultSync(invalidSchema);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]!.type).toBe('schema');
-    });
-
-    it('should format Zod errors consistently', async () => {
-      const missingFields = JSON.stringify({
-        mode: 'general'
-        // Missing zones and tactics
-      });
-      
-      const result = await parseAIResult(missingFields);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      
-      // Check error format
-      const error = result.errors[0]!;
-      expect(error.type).toBe('schema');
-      expect(error.message).toBeDefined();
-      expect(typeof error.message).toBe('string');
-    });
-
-    it('should succeed when fallback extracts valid JSON from wrapped response', async () => {
-      const wrappedInMarkdown = `\`\`\`json\n${validResultJSON}\n\`\`\``;
-      
-      const result = await parseAIResult(wrappedInMarkdown);
-      expect(result.valid).toBe(true);
-      expect(result.parsed).toBeDefined();
-    });
-
-    it('should handle edge case of valid JSON with invalid schema', async () => {
-      const validJSONInvalidSchema = JSON.stringify({
-        mode: 'general',
-        zones: 'should-be-array',  // Wrong type
-        tactics: []
-      });
-      
-      const result = await parseAIResult(validJSONInvalidSchema);
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.type === 'schema')).toBe(true);
-    });
-  });
-
-  // ============================================================================
-  // Performance Tests
-  // ============================================================================
-
-  describe('Performance', () => {
-    it('should parse within reasonable time', async () => {
-      const start = Date.now();
-      await parseAIResult(validResultJSON);
-      const elapsed = Date.now() - start;
-      expect(elapsed).toBeLessThan(100); // Should be fast
-    });
-
-    it('should handle multiple parses efficiently', async () => {
-      const start = Date.now();
-      const promises = Array.from({ length: 10 }, () => 
-        parseAIResult(validResultJSON)
-      );
-      await Promise.all(promises);
-      const elapsed = Date.now() - start;
-      expect(elapsed).toBeLessThan(500); // 10 parses in < 500ms
-    });
-  });
 });
+

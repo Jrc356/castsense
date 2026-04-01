@@ -1,7 +1,7 @@
 export { runAnalysis, isRetryable, getErrorMessage } from './analysis-orchestrator'
 export { analyzeWithLangChain, LangChainError } from './langchain-chain'
 export { handleFollowUpQuestion, buildFollowUpPrompt, mapFollowUpError } from './langchain-followup'
-export { parseAIResult, parseAIResultSync, getFormatInstructions, hasValidStructure } from './langchain-parsers'
+export { hasValidStructure, validateGeometry } from './langchain-parsers'
 export { fetchAvailableModels } from './model-discovery'
 export { enrichMetadata } from './enrichment'
 export { processImage, getImageDimensions } from './image-processor'
