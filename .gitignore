@@ -50,6 +50,7 @@ coverage/
 web/dist/
 web/coverage/
 web/.vite/
+backend/public/
 
 # Temporary files
 tmp/

@@ -4,9 +4,8 @@ A responsive web AI fishing assistant that provides scene-aware cast recommendat
 
 ## Project Structure
 
-- web/: React + TypeScript + Vite web client
-- backend/: backend workspace (currently minimal scaffold)
-- contracts/: shared JSON Schemas and generated TypeScript contracts
+- web/: React + TypeScript + Vite frontend client
+- backend/: Node + TypeScript service that serves health and production web assets
 - docs/: product, acceptance, and implementation notes
 
 ## Quick Start
@@ -29,28 +28,29 @@ A responsive web AI fishing assistant that provides scene-aware cast recommendat
    make typecheck
    make test
 
+4. Optional single-service smoke run (serves built web from backend):
+
+   make start-single
+
+   Opens [http://localhost:3000](http://localhost:3000)
+
 ### With Docker Compose
 
 1. Build and start services:
 
    docker-compose up --build
 
-   - Backend: [http://localhost:3000](http://localhost:3000)
-   - Web: [http://localhost:5173](http://localhost:5173)
+   - App: [http://localhost:3000](http://localhost:3000)
 
 2. Stop services:
 
    docker-compose down
 
-## Contracts
+## Architecture Notes
 
-Generate shared contract types:
-
-make contracts-generate-types
-
-This writes types to:
-- web/src/types/contracts.ts
-- backend/src/types/contracts.ts
+- Local development keeps Vite as the default workflow for fast HMR (`make start`).
+- Deployment/runtime is a single service: backend serves static assets from the web build output.
+- App domain types are maintained locally in `web/src/types/contracts.ts`.
 
 ## API Key Setup
 

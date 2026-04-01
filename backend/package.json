@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "start": "node dist/index.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"No backend lint configured\"",
     "test": "echo \"No backend tests configured\"",
-    "docker:build": "docker build -t castsense-backend ."
+    "docker:build": "docker build -f Dockerfile -t castsense .."
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.3"
   }
 }

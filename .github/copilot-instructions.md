@@ -11,23 +11,12 @@ Provide practical guidance for working in this repository after migration from m
 - make lint
 - make typecheck
 - make test
-- make contracts-generate-types
 
 ## Architecture
 
 - web/: primary frontend (React + TypeScript + Vite)
-- backend/: backend workspace (minimal scaffold)
-- contracts/: shared schemas and type generation source
-
-## Contracts
-
-Type generation outputs:
-- web/src/types/contracts.ts
-- backend/src/types/contracts.ts
-
-When contract schemas change, run:
-
-make contracts-generate-types
+- backend/: single Node service that serves health and production web assets
+- web/src/types/contracts.ts: locally maintained app domain types
 
 ## Testing
 
