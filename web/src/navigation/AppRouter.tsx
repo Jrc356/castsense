@@ -1,11 +1,11 @@
-import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom'
+import { HashRouter, NavLink, Route, Routes } from 'react-router-dom'
 import { CaptureScreen, ErrorScreen, HomeScreen, ResultsScreen, SettingsScreen } from '../screens'
 
 export function AppRouter(): React.JSX.Element {
   const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="app-shell">
         <header className="topbar">
           <div className="brand">
@@ -33,6 +33,6 @@ export function AppRouter(): React.JSX.Element {
           <Route path="/error" element={<ErrorScreen />} />
         </Routes>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
