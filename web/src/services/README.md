@@ -8,6 +8,8 @@ Coordinates the full three-stage pipeline: image processing → metadata enrichm
 
 Exported: `runAnalysis`, `isRetryable`, `getErrorMessage`
 
+`AnalysisInput.location` is optional. When absent, the enrichment stage returns all-skipped results and the prompt is built without location context. `AnalysisInput.sessionId` is optional; when provided, it is passed to `analyzeWithLangChain` so the result is stored in conversation memory, enabling follow-up questions.
+
 Error codes: `NO_API_KEY` | `NO_GPS` | `INVALID_MEDIA` | `AI_TIMEOUT` | `AI_RATE_LIMITED` | `AI_INVALID_KEY` | `NETWORK_ERROR` | `VALIDATION_ERROR` | `UNKNOWN`
 
 ## `langchain-chain`
@@ -20,11 +22,19 @@ Exported: `analyzeWithLangChain`, `LangChainError`
 
 Handles follow-up questions against an existing analysis session using LangChain conversation memory.
 
-Exported: `handleFollowUpQuestion`, `buildFollowUpPrompt`, `mapFollowUpError`
+`streamFollowUpQuestion` is the primary export used by the UI. It streams response tokens incrementally via an `onChunk` callback and stores the completed exchange in conversation memory via `addTextExchangeToMemory`. `handleFollowUpQuestion` provides a non-streaming fallback that also saves the exchange to memory.
+
+Both functions require an existing session with history. If no history is found for the provided `sessionId`, they return `{ success: false, error: { code: 'NO_HISTORY' } }` without calling the model.
+
+Exported: `streamFollowUpQuestion`, `handleFollowUpQuestion`, `buildFollowUpPrompt`, `mapFollowUpError`
 
 ## `langchain-memory`
 
-Manages the per-session LangChain conversation buffer used for follow-up continuity.
+Manages the per-session LangChain conversation buffer used for follow-up continuity. Sessions are stored in a module-level `Map` and are lost on page reload.
+
+`addToMemory` stores the initial analysis result (as a JSON-serialised `AIMessage`). `addTextExchangeToMemory` appends a plain-text follow-up Q&A pair so subsequent questions see the full conversation history.
+
+Exported: `createSessionId`, `createConversationMemory`, `addToMemory`, `addTextExchangeToMemory`, `getConversationHistory`, `hasHistory`, `getMessageCount`, `clearMemory`, `clearAllMemory`
 
 ## `langchain-parsers`
 

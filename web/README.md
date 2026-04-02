@@ -40,6 +40,20 @@ The app requires a BYO OpenAI API key entered in the Settings screen. The key is
 
 **Security**: `localStorage` is accessible to any JavaScript on the same origin. Before production deployment, move API key handling to a backend proxy with session-based auth and remove browser key storage.
 
+## Session persistence
+
+When analysis completes, the last result is written to `localStorage` under three keys:
+
+| Key | Contents |
+|---|---|
+| `castsense:lastAnalysisResult` | JSON-serialised `AnalysisResult` |
+| `castsense:lastCaptureResult` | JSON-serialised `CaptureResult` (includes the image as a data URL) |
+| `castsense:lastSessionId` | Plain session ID string |
+
+On app load, `AppContext` reads these keys and rehydrates state directly into the `Results` state if all three are present. A `RESET` action clears all three keys. All `localStorage` access is wrapped in try/catch to handle storage quota errors silently.
+
+Note: `captureResult.uri` is a data URL and can be several hundred kilobytes. Storage quota limits vary by browser.
+
 ## Environment
 
 No `.env` file is required for local development. The OpenAI API key is entered at runtime in the Settings screen and persisted to `localStorage`.
