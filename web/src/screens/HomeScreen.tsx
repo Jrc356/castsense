@@ -41,6 +41,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
   const [manualLat, setManualLat] = useState('')
   const [manualLon, setManualLon] = useState('')
   const [busy, setBusy] = useState(false)
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null)
 
   const selectedModelRef = useRef(state.selectedModel)
   selectedModelRef.current = state.selectedModel
@@ -49,6 +50,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
     let cancelled = false
     void (async () => {
       const apiKey = await getApiKey()
+      if (!cancelled) setApiKeyConfigured(!!apiKey)
       if (!apiKey || cancelled) return
       try {
         const models = await fetchAvailableModels(apiKey)
@@ -167,7 +169,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
     <main className="screen">
       <section className="panel hero-panel">
         <h2>Set Your Fishing Context</h2>
-        <p>Choose mode, capture a scene, then run AI analysis.</p>
+        <p>Choose mode, snap a picture, then run AI analysis.</p>
       </section>
 
       <section className="panel form-grid">
@@ -291,9 +293,16 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
       </section>
 
       <section className="action-row">
-        <button className="ghost" type="button" onClick={onOpenSettings}>
-          API Key Settings
-        </button>
+        <span className="api-key-control">
+          <button className="ghost" type="button" onClick={onOpenSettings}>
+            API Key Settings
+          </button>
+          {apiKeyConfigured !== null && (
+            <span className={`api-key-badge ${apiKeyConfigured ? 'ok' : 'missing'}`}>
+              {apiKeyConfigured ? '✓ Configured' : '✗ Not set'}
+            </span>
+          )}
+        </span>
         <button className="secondary" type="button" onClick={openCapture}>
           Capture or Upload
         </button>

@@ -257,6 +257,35 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
+  align-items: center;
+}
+
+.api-key-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-key-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.26rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.api-key-badge.ok {
+  background: rgb(74 210 139 / 16%);
+  color: #246b47;
+  border: 1px solid rgb(74 210 139 / 32%);
+}
+
+.api-key-badge.missing {
+  background: rgb(220 80 60 / 12%);
+  color: #7a2e20;
+  border: 1px solid rgb(220 80 60 / 26%);
 }
 
 button {
