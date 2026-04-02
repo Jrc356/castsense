@@ -79,11 +79,6 @@ export function SettingsScreen(): React.JSX.Element {
         </button>
       </section>
 
-      <section className="panel">
-        <p>
-          Security note: key storage currently uses localStorage for migration parity. Do not use this mode for production.
-        </p>
-      </section>
     </main>
   )
 }
