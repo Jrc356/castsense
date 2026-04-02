@@ -49,7 +49,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
     <main className="screen">
       <section className="panel hero-panel">
         <h2>API Key Settings</h2>
-        <p>CastSense uses your own OpenAI API key.</p>
+        <p>CastSense uses your own OpenAI API key. Get one at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com</a>.</p>
       </section>
 
       <section className="panel privacy-notice">
