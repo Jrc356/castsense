@@ -288,6 +288,23 @@ textarea {
   border: 1px solid rgb(220 80 60 / 26%);
 }
 
+.privacy-notice {
+  border-color: rgb(80 160 210 / 30%);
+  background: linear-gradient(165deg, rgb(235 247 255 / 82%), rgb(224 242 252 / 76%));
+}
+
+.privacy-notice-heading {
+  font-weight: 700;
+  color: #1a4a62;
+  margin: 0 0 0.35rem;
+}
+
+.privacy-notice p:last-child {
+  margin: 0;
+  font-size: 0.89rem;
+  color: #2e5f78;
+}
+
 button {
   border: 0;
   border-radius: 999px;

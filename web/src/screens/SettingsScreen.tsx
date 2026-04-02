@@ -57,6 +57,11 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
         <p>CastSense uses your own OpenAI API key.</p>
       </section>
 
+      <section className="panel privacy-notice">
+        <p className="privacy-notice-heading">&#128274; Your key never leaves this device</p>
+        <p>The API key is saved only in your browser&rsquo;s local storage. It is sent directly from your browser to OpenAI and is never transmitted to or stored on any CastSense server.</p>
+      </section>
+
       <section className="panel">
         <p><strong>Status:</strong> {configured ? 'Configured' : 'Not configured'}</p>
         {configured ? <p><strong>Saved key:</strong> {masked}</p> : null}
