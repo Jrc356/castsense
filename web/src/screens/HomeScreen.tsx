@@ -42,6 +42,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
   const [manualLon, setManualLon] = useState('')
   const [busy, setBusy] = useState(false)
   const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   const selectedModelRef = useRef(state.selectedModel)
   selectedModelRef.current = state.selectedModel
@@ -67,8 +68,9 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
   }, [selectModel, setAvailableModels])
 
   function openCapture() {
+    setValidationError(null)
     if (mode === 'specific' && !targetSpecies.trim()) {
-      window.alert('Enter a target species for Specific mode before capture.')
+      setValidationError('Enter a target species for Specific mode before capture.')
       return
     }
 
@@ -80,8 +82,9 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
   }
 
   async function analyzeNow() {
+    setValidationError(null)
     if (!state.captureResult) {
-      window.alert('Capture or upload a photo first.')
+      setValidationError('Capture or upload a photo first.')
       return
     }
 
@@ -91,24 +94,22 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
       return
     }
 
-    let location
+    let location: { lat: number; lon: number } | undefined
     if (locationMode === 'manual') {
       const lat = parseFloat(manualLat)
       const lon = parseFloat(manualLon)
       if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-        window.alert('Enter valid coordinates. Latitude must be -90 to 90, longitude -180 to 180.')
+        setValidationError('Enter valid coordinates. Latitude must be -90 to 90, longitude -180 to 180.')
         return
       }
       location = { lat, lon }
     } else {
-      location = await getCurrentLocation()
-      if (!location) {
-        handleError({
-          code: 'NO_GPS',
-          message: 'Location is unavailable. Enable location permission and retry.',
-          retryable: true,
-        })
-        return
+      const gpsResult = await getCurrentLocation()
+      if (!gpsResult) {
+        setValidationError('Location unavailable — proceeding without GPS context. Results may be less precise.')
+        location = undefined
+      } else {
+        location = gpsResult
       }
     }
 
@@ -291,6 +292,33 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
           <p>No photo captured yet.</p>
         )}
       </section>
+
+      {busy && (
+        <section className="panel">
+          <h3>Analysis Progress</h3>
+          {[
+            { key: 'Processing', label: 'Processing', description: 'Preparing image', progress: state.processingProgress },
+            { key: 'Enriching', label: 'Enriching', description: 'Geo/weather lookup', progress: state.enrichmentProgress },
+            { key: 'Analyzing', label: 'Analyzing', description: 'AI vision call', progress: state.aiProgress },
+          ].map((step) => {
+            const stateOrder = ['Processing', 'Enriching', 'Analyzing']
+            const currentIndex = stateOrder.indexOf(state.state)
+            const stepIndex = stateOrder.indexOf(step.key)
+            const status = step.progress === 1 ? 'Done' : stepIndex === currentIndex ? 'In progress...' : 'Waiting'
+            return (
+              <div key={step.key} style={{ marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>{step.label}</strong> — {step.description}</span>
+                  <span>{status}</span>
+                </div>
+                <progress value={step.progress} max={1} style={{ width: '100%' }} />
+              </div>
+            )
+          })}
+        </section>
+      )}
+
+      {validationError && <p className="error-message" role="alert">{validationError}</p>}
 
       <section className="action-row">
         <span className="api-key-control">

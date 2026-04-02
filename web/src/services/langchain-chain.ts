@@ -90,7 +90,7 @@ export interface AnalysisRequest {
   enrichment: EnrichmentResults;
   
   /** GPS coordinates */
-  location: {
+  location?: {
     lat: number;
     lon: number;
   };

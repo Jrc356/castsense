@@ -16,6 +16,8 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
   const [apiKey, setApiKey] = useState('')
   const [configured, setConfigured] = useState(false)
   const [masked, setMasked] = useState('')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const loadStatus = useCallback(async () => {
     const ready = await hasApiKey()
@@ -33,20 +35,13 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
   }, [loadStatus])
 
   async function save() {
+    setSaveError(null)
     if (!isValidApiKeyFormat(apiKey)) {
-      window.alert('API key format looks invalid.')
+      setSaveError('API key format looks invalid.')
       return
     }
     await storeApiKey(apiKey)
     setApiKey('')
-    await loadStatus()
-  }
-
-  async function clear() {
-    if (!window.confirm('Remove saved API key?')) {
-      return
-    }
-    await clearApiKey()
     await loadStatus()
   }
 
@@ -79,11 +74,27 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
         </label>
       </section>
 
+      {saveError && <p className="error-message" role="alert">{saveError}</p>}
+
+      {confirmClear && (
+        <section className="panel">
+          <p>Are you sure? This cannot be undone.</p>
+          <div>
+            <button type="button" onClick={async () => { await clearApiKey(); await loadStatus(); setConfirmClear(false) }}>
+              Yes, remove
+            </button>
+            <button className="ghost" type="button" onClick={() => setConfirmClear(false)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="action-row">
         <button className="ghost" type="button" onClick={onBack}>
           Back
         </button>
-        <button className="secondary" type="button" onClick={clear}>
+        <button className="secondary" type="button" onClick={() => setConfirmClear(true)}>
           Clear Key
         </button>
         <button type="button" onClick={() => void save()}>

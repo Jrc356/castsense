@@ -4,6 +4,8 @@ import { TacticsPanel, TextOnlyResults } from '../components'
 import type { CastSenseAnalysisResult, Tactic, Zone } from '../types/contracts'
 import type { Size } from '../utils/coordinate-mapping'
 import { useApp } from '../state/AppContext'
+import { handleFollowUpQuestion } from '../services/langchain-followup'
+import { getApiKey } from '../services/api-key-storage'
 
 function useDisplaySize(ref: React.RefObject<HTMLElement | null>): Size {
   const [size, setSize] = useState<Size>({ width: 1, height: 1 })
@@ -35,6 +37,10 @@ export function ResultsScreen(): React.JSX.Element {
   const zones = (data?.zones ?? []) as Zone[]
   const tactics = (data?.tactics ?? []) as Tactic[]
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(zones[0]?.zone_id ?? null)
+  const [followUpInput, setFollowUpInput] = useState('')
+  const [followUpResponse, setFollowUpResponse] = useState<string | null>(null)
+  const [followUpError, setFollowUpError] = useState<string | null>(null)
+  const [followUpBusy, setFollowUpBusy] = useState(false)
 
   const imageSize: Size = data?.analysis_frame
     ? {
@@ -47,6 +53,37 @@ export function ResultsScreen(): React.JSX.Element {
       }
 
   const displaySize = useDisplaySize(containerRef)
+
+  async function submitFollowUp() {
+    if (!followUpInput.trim()) return
+    if (!state.sessionId) {
+      setFollowUpError('No active session. Please run a new analysis.')
+      return
+    }
+    const apiKey = await getApiKey()
+    if (!apiKey) {
+      setFollowUpError('API key not configured.')
+      return
+    }
+    setFollowUpError(null)
+    setFollowUpBusy(true)
+    try {
+      const result = await handleFollowUpQuestion(
+        state.sessionId,
+        followUpInput.trim(),
+        apiKey,
+        state.selectedModel ?? undefined
+      )
+      if (result.success) {
+        setFollowUpResponse(result.response)
+        setFollowUpInput('')
+      } else {
+        setFollowUpError(result.error.message)
+      }
+    } finally {
+      setFollowUpBusy(false)
+    }
+  }
 
   if (!state.captureResult || !data) {
     return (
@@ -118,6 +155,30 @@ export function ResultsScreen(): React.JSX.Element {
           </ul>
         ) : (
           <p>No condition summary provided.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h3>Ask a Follow-Up Question</h3>
+        <textarea
+          rows={2}
+          style={{ width: '100%' }}
+          placeholder="e.g. What lure should I use in Zone 1?"
+          value={followUpInput}
+          onChange={(e) => setFollowUpInput(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => void submitFollowUp()}
+          disabled={followUpBusy || !followUpInput.trim()}
+        >
+          {followUpBusy ? 'Asking...' : 'Ask'}
+        </button>
+        {followUpError && <p className="error-message" role="alert">{followUpError}</p>}
+        {followUpResponse && (
+          <div className="follow-up-response">
+            <p>{followUpResponse}</p>
+          </div>
         )}
       </section>
 

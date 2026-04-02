@@ -73,7 +73,7 @@ export interface AnalysisResult {
 
 export interface AnalysisInput {
   photoUri: string;
-  location: {
+  location?: {
     lat: number;
     lon: number;
   };
@@ -168,18 +168,6 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
         error: createAnalysisError(
           'NO_API_KEY',
           'No API key configured. Please set your OpenAI API key in settings.',
-          false
-        )
-      };
-    }
-
-    if (!location || location.lat < -90 || location.lat > 90 || 
-        location.lon < -180 || location.lon > 180) {
-      return {
-        success: false,
-        error: createAnalysisError(
-          'NO_GPS',
-          'Invalid GPS location. Please enable location services.',
           false
         )
       };

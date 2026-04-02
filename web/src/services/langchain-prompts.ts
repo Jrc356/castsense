@@ -89,7 +89,7 @@ export interface PromptVariables {
  */
 export function buildContextPack(
   enrichment: EnrichmentResults,
-  location: { lat: number; lon: number },
+  location: { lat: number; lon: number } | undefined,
   options: AnalysisOptions
 ): ContextPack {
   const contextPack: ContextPack = {
@@ -98,7 +98,7 @@ export function buildContextPack(
   };
 
   // Location
-  if (enrichment.reverseGeocode) {
+  if (enrichment.reverseGeocode && location) {
     contextPack.location = {
       lat: location.lat,
       lon: location.lon,

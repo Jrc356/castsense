@@ -421,7 +421,7 @@ export interface Location {
  * @returns Enrichment results and status
  */
 export async function enrichMetadata(
-  location: Location,
+  location: Location | undefined,
   timestamp: Date = new Date(),
   timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
 ): Promise<EnrichmentResult> {
@@ -436,6 +436,10 @@ export async function enrichMetadata(
     weather: 'skipped',
     solar: 'skipped'
   };
+
+  if (!location) {
+    return { results, status, overallStatus: 'degraded' };
+  }
 
   const { lat, lon } = location;
 

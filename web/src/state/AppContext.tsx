@@ -37,6 +37,55 @@ import {
 import { loadSelectedModel, saveSelectedModel, getDefaultModel } from '../services/model-storage';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Session Persistence
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PERSIST_KEYS = {
+  analysisResult: 'castsense:lastAnalysisResult',
+  captureResult: 'castsense:lastCaptureResult',
+  sessionId: 'castsense:lastSessionId',
+} as const;
+
+function persistSession(state: MachineState): void {
+  if (state.state === 'Results' && state.analysisResult && state.captureResult && state.sessionId) {
+    try {
+      localStorage.setItem(PERSIST_KEYS.analysisResult, JSON.stringify(state.analysisResult));
+      localStorage.setItem(PERSIST_KEYS.captureResult, JSON.stringify(state.captureResult));
+      localStorage.setItem(PERSIST_KEYS.sessionId, state.sessionId);
+    } catch {
+      // localStorage may be full or unavailable
+    }
+  }
+}
+
+function clearPersistedSession(): void {
+  try {
+    localStorage.removeItem(PERSIST_KEYS.analysisResult);
+    localStorage.removeItem(PERSIST_KEYS.captureResult);
+    localStorage.removeItem(PERSIST_KEYS.sessionId);
+  } catch {
+    // ignore
+  }
+}
+
+function loadPersistedSession(): Partial<Pick<MachineState, 'analysisResult' | 'captureResult' | 'sessionId' | 'state'>> | null {
+  try {
+    const rawAnalysis = localStorage.getItem(PERSIST_KEYS.analysisResult);
+    const rawCapture = localStorage.getItem(PERSIST_KEYS.captureResult);
+    const rawSessionId = localStorage.getItem(PERSIST_KEYS.sessionId);
+    if (!rawAnalysis || !rawCapture || !rawSessionId) return null;
+    return {
+      analysisResult: JSON.parse(rawAnalysis) as AnalysisResult,
+      captureResult: JSON.parse(rawCapture) as CaptureResult,
+      sessionId: rawSessionId,
+      state: 'Results',
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Context Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -91,7 +140,11 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, undefined, (): MachineState => {
+    const persisted = loadPersistedSession();
+    if (!persisted) return initialState;
+    return { ...initialState, ...persisted };
+  });
 
   // Memoized action dispatchers
   const selectMode = useCallback(
@@ -239,6 +292,16 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   const reset = useCallback(() => {
     dispatch(actions.reset());
   }, []);
+
+  // Persist results on state change; clear on reset to Idle
+  useEffect(() => {
+    if (state.state === 'Results') {
+      persistSession(state);
+    }
+    if (state.state === 'Idle') {
+      clearPersistedSession();
+    }
+  }, [state.state, state.analysisResult, state.captureResult, state.sessionId]);
 
   // Memoized context value
   const value = useMemo<AppContextValue>(
