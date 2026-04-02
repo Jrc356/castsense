@@ -118,6 +118,8 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
       startAnalysis()
       startProcessing()
 
+      const sessionId = createSessionId()
+
       const result = await runAnalysis({
         photoUri: state.captureResult.uri,
         location,
@@ -129,6 +131,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
         },
         model: state.selectedModel || 'gpt-5.4',
         apiKey,
+        sessionId,
         onProgress: (progress) => {
           if (progress.stage === 'processing') {
             startProcessing()
@@ -154,7 +157,7 @@ export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Eleme
         return
       }
 
-      receiveResults(result.data, createSessionId())
+      receiveResults(result.data, sessionId)
     } catch (error) {
       handleError({
         code: 'UNKNOWN',

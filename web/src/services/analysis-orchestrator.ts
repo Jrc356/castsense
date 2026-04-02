@@ -80,6 +80,7 @@ export interface AnalysisInput {
   options: AnalysisOptions;
   apiKey: string;
   model?: string;
+  sessionId?: string;
   onProgress?: (progress: AnalysisProgress) => void;
 }
 
@@ -149,7 +150,7 @@ function handleError(error: unknown): AnalysisError {
  * @returns Analysis result with data or error
  */
 export async function runAnalysis(input: AnalysisInput & { model: string }): Promise<AnalysisResult> {
-  const { photoUri, location, options, apiKey, model, onProgress } = input;
+  const { photoUri, location, options, apiKey, model, sessionId, onProgress } = input;
   const startTime = Date.now();
 
   const timings = {
@@ -232,7 +233,8 @@ export async function runAnalysis(input: AnalysisInput & { model: string }): Pro
       enrichment: enrichmentResult.results,
       location,
       options,
-      apiKey
+      apiKey,
+      sessionId
     };
 
     const langchainResult = await analyzeWithLangChain(langchainRequest);
