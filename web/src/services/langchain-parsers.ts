@@ -48,13 +48,9 @@ const SpeciesConfidenceSchema = z.object({
  * Analysis frame metadata
  */
 const AnalysisFrameSchema = z.object({
-  type: z.enum(['photo', 'video_frame']).describe('Type of analysis frame'),
+  type: z.literal('photo').describe('Type of analysis frame'),
   width_px: z.number().int().min(1).describe('Frame width in pixels'),
-  height_px: z.number().int().min(1).describe('Frame height in pixels'),
-  selected_frame_index: z.number().int().min(0).optional()
-    .describe('For video: index of selected keyframe'),
-  frame_timestamp_ms: z.number().int().min(0).optional()
-    .describe('For video: timestamp of frame in milliseconds')
+  height_px: z.number().int().min(1).describe('Frame height in pixels')
 });
 
 /**

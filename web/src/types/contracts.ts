@@ -11,7 +11,7 @@ export type PlatformContext = 'shore' | 'kayak' | 'boat'
 
 export type GearType = 'spinning' | 'baitcasting' | 'fly' | 'unknown'
 
-export type CaptureType = 'photo' | 'video'
+export type CaptureType = 'photo'
 
 export interface CastSenseRequestMetadata {
   client: {
@@ -86,11 +86,9 @@ export interface CastSenseAnalysisResult {
     confidence: number
   }>
   analysis_frame?: {
-    type: 'photo' | 'video_frame'
+    type: 'photo'
     width_px: number
     height_px: number
-    selected_frame_index?: number
-    frame_timestamp_ms?: number
   }
   zones: Zone[]
   tactics: Tactic[]

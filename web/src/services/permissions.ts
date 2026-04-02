@@ -109,7 +109,7 @@ export async function requestMicrophonePermission(): Promise<boolean> {
   if (status === 'denied') {
     showPermissionDeniedAlert(
       'Microphone Permission Recommended',
-      'Microphone access is optional unless video capture with audio is enabled.',
+      'Microphone access is optional for current features.',
     )
   }
   return status === 'granted'

@@ -306,25 +306,6 @@ describe('LangChain Parsers', () => {
       expect(CastSenseResultSchema.safeParse(tooManyZones).success).toBe(false);
     });
 
-    it('should accept video frame metadata', () => {
-      const videoResult = {
-        ...validResult,
-        analysis_frame: {
-          type: 'video_frame' as const,
-          width_px: 1920,
-          height_px: 1080,
-          selected_frame_index: 5,
-          frame_timestamp_ms: 1500
-        }
-      };
-      const result = CastSenseResultSchema.safeParse(videoResult);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.analysis_frame?.type).toBe('video_frame');
-        expect(result.data.analysis_frame?.selected_frame_index).toBe(5);
-      }
-    });
-
     it('should accept empty arrays for optional fields', () => {
       const emptyOptionals = {
         ...validResult,

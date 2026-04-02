@@ -23,7 +23,7 @@ export interface MetadataOptions {
   targetSpecies?: string | null
   platformContext?: 'shore' | 'kayak' | 'boat'
   gearType?: 'spinning' | 'baitcasting' | 'fly' | 'unknown'
-  captureType: 'photo' | 'video'
+  captureType: 'photo'
   captureTimestamp?: Date
   userConstraints?: {
     lures_available?: string[]
