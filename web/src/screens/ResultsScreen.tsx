@@ -4,7 +4,7 @@ import { TacticsPanel, TextOnlyResults } from '../components'
 import type { CastSenseAnalysisResult, Tactic, Zone } from '../types/contracts'
 import type { Size } from '../utils/coordinate-mapping'
 import { useApp } from '../state/AppContext'
-import { handleFollowUpQuestion } from '../services/langchain-followup'
+import { streamFollowUpQuestion } from '../services/langchain-followup'
 import { getApiKey } from '../services/api-key-storage'
 
 function useDisplaySize(ref: React.RefObject<HTMLElement | null>): Size {
@@ -29,6 +29,11 @@ function useDisplaySize(ref: React.RefObject<HTMLElement | null>): Size {
   return size
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export function ResultsScreen(): React.JSX.Element {
   const { state, reset, retry } = useApp()
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -37,10 +42,12 @@ export function ResultsScreen(): React.JSX.Element {
   const zones = (data?.zones ?? []) as Zone[]
   const tactics = (data?.tactics ?? []) as Tactic[]
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(zones[0]?.zone_id ?? null)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [streamingContent, setStreamingContent] = useState('')
   const [followUpInput, setFollowUpInput] = useState('')
-  const [followUpResponse, setFollowUpResponse] = useState<string | null>(null)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
   const [followUpBusy, setFollowUpBusy] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   const imageSize: Size = data?.analysis_frame
     ? {
@@ -54,8 +61,13 @@ export function ResultsScreen(): React.JSX.Element {
 
   const displaySize = useDisplaySize(containerRef)
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages, streamingContent])
+
   async function submitFollowUp() {
-    if (!followUpInput.trim()) return
+    const question = followUpInput.trim()
+    if (!question) return
     if (!state.sessionId) {
       setFollowUpError('No active session. Please run a new analysis.')
       return
@@ -67,22 +79,26 @@ export function ResultsScreen(): React.JSX.Element {
     }
     setFollowUpError(null)
     setFollowUpBusy(true)
-    try {
-      const result = await handleFollowUpQuestion(
-        state.sessionId,
-        followUpInput.trim(),
-        apiKey,
-        state.selectedModel ?? undefined
-      )
-      if (result.success) {
-        setFollowUpResponse(result.response)
-        setFollowUpInput('')
-      } else {
-        setFollowUpError(result.error.message)
-      }
-    } finally {
-      setFollowUpBusy(false)
+    setFollowUpInput('')
+    setChatMessages((prev) => [...prev, { role: 'user', content: question }])
+    setStreamingContent('')
+
+    const result = await streamFollowUpQuestion(
+      state.sessionId,
+      question,
+      apiKey,
+      (chunk) => setStreamingContent((prev) => prev + chunk),
+      state.selectedModel ?? undefined
+    )
+
+    if (result.success) {
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: result.response }])
+    } else {
+      setChatMessages((prev) => prev.slice(0, -1)) // remove optimistic user message
+      setFollowUpError(result.error.message)
     }
+    setStreamingContent('')
+    setFollowUpBusy(false)
   }
 
   if (!state.captureResult || !data) {
@@ -159,26 +175,68 @@ export function ResultsScreen(): React.JSX.Element {
       </section>
 
       <section className="panel">
-        <h3>Ask a Follow-Up Question</h3>
-        <textarea
-          rows={2}
-          style={{ width: '100%' }}
-          placeholder="e.g. What lure should I use in Zone 1?"
-          value={followUpInput}
-          onChange={(e) => setFollowUpInput(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={() => void submitFollowUp()}
-          disabled={followUpBusy || !followUpInput.trim()}
-        >
-          {followUpBusy ? 'Asking...' : 'Ask'}
-        </button>
-        {followUpError && <p className="error-message" role="alert">{followUpError}</p>}
-        {followUpResponse && (
-          <div className="follow-up-response">
-            <p>{followUpResponse}</p>
+        <h3>Ask a Follow-Up</h3>
+
+        {chatMessages.length > 0 || streamingContent ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '320px', overflowY: 'auto', marginBottom: '0.75rem', padding: '0.25rem 0' }}>
+            {chatMessages.map((msg, i) => (
+              <div
+                key={i}
+                style={{
+                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '85%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '12px',
+                  background: msg.role === 'user' ? '#1a73e8' : '#e8eaed',
+                  color: msg.role === 'user' ? '#fff' : '#202124',
+                  lineHeight: 1.5,
+                }}
+              >
+                <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{msg.content}</p>
+              </div>
+            ))}
+            {streamingContent ? (
+              <div style={{ alignSelf: 'flex-start', maxWidth: '85%', padding: '0.5rem 0.75rem', borderRadius: '12px', background: '#e8eaed', color: '#202124', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                  {streamingContent}
+                  <span style={{ display: 'inline-block', width: '0.5em', height: '1em', background: 'currentColor', marginLeft: '1px', verticalAlign: 'text-bottom', animation: 'none', opacity: 0.7 }}>▋</span>
+                </p>
+              </div>
+            ) : followUpBusy ? (
+              <div style={{ alignSelf: 'flex-start', padding: '0.5rem 0.75rem', borderRadius: '12px', background: '#e8eaed', color: '#888', fontSize: '0.9rem' }}>…</div>
+            ) : null}
+            <div ref={chatEndRef} />
           </div>
+        ) : null}
+
+        {followUpError && <p className="error-message" role="alert" style={{ marginBottom: '0.5rem' }}>{followUpError}</p>}
+
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+          <textarea
+            rows={2}
+            style={{ flex: 1, resize: 'vertical' }}
+            placeholder="Ask about zones, lures, timing… (Enter to send)"
+            value={followUpInput}
+            disabled={followUpBusy}
+            onChange={(e) => setFollowUpInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void submitFollowUp()
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => void submitFollowUp()}
+            disabled={followUpBusy || !followUpInput.trim()}
+          >
+            {followUpBusy ? '…' : 'Ask'}
+          </button>
+        </div>
+
+        {chatMessages.length === 0 && !followUpBusy && (
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', opacity: 0.6 }}>Shift+Enter for a new line.</p>
         )}
       </section>
 

@@ -141,6 +141,29 @@ export async function addToMemory(
  * console.log(`Session has ${history.length} messages`);
  * ```
  */
+/**
+ * Add a plain text exchange (follow-up Q&A) to conversation memory.
+ *
+ * Used after follow-up questions are answered so subsequent questions
+ * have context from the full conversation, not just the initial analysis.
+ *
+ * @param sessionId - Session identifier
+ * @param userMessage - The follow-up question the user asked
+ * @param aiResponse - The plain-text response from the AI
+ */
+export async function addTextExchangeToMemory(
+  sessionId: string,
+  userMessage: string,
+  aiResponse: string
+): Promise<void> {
+  console.log(`[LangChain Memory] Adding text exchange to session: ${sessionId}`);
+  const memory = createConversationMemory(sessionId);
+  await memory.addMessages([
+    new HumanMessage(userMessage),
+    new AIMessage(aiResponse),
+  ]);
+}
+
 export async function getConversationHistory(sessionId: string): Promise<BaseMessage[]> {
   const memory = memoryStore.get(sessionId);
   

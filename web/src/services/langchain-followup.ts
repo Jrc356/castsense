@@ -20,7 +20,7 @@
 import { HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { createChatModel } from '../config/langchain';
-import { getConversationHistory } from './langchain-memory';
+import { getConversationHistory, addTextExchangeToMemory } from './langchain-memory';
 
 // ============================================================================
 // Types
@@ -84,6 +84,71 @@ export type FollowUpResult = FollowUpSuccess | FollowUpError;
  * }
  * ```
  */
+/**
+ * Stream a follow-up question, delivering tokens incrementally via a callback.
+ *
+ * Identical guard logic to handleFollowUpQuestion but uses model.stream() so
+ * the UI can render tokens as they arrive. Saves the completed exchange to
+ * memory so subsequent questions retain full context.
+ *
+ * @param sessionId - Conversation session ID (must have existing history)
+ * @param question - User's follow-up question
+ * @param apiKey - OpenAI API key
+ * @param onChunk - Called with each token string as it arrives
+ * @param modelName - Model to use
+ * @returns The complete response text on success, or an error result
+ */
+export async function streamFollowUpQuestion(
+  sessionId: string,
+  question: string,
+  apiKey: string,
+  onChunk: (chunk: string) => void,
+  modelName: string = 'gpt-5.4'
+): Promise<FollowUpResult> {
+  console.log(`[LangChain Follow-Up] Streaming question for session: ${sessionId}`);
+
+  try {
+    const history = await getConversationHistory(sessionId);
+    if (history.length === 0) {
+      return {
+        success: false,
+        error: {
+          code: 'NO_HISTORY',
+          message: 'No conversation history found for this session. Please analyze an image first.',
+          retryable: false,
+        },
+      };
+    }
+
+    const systemPrompt = buildFollowUpPrompt();
+    const messages: BaseMessage[] = [
+      new HumanMessage(systemPrompt),
+      ...history,
+      new HumanMessage(question),
+    ];
+
+    const model = await createChatModel(apiKey, modelName);
+    const stream = await model.stream(messages);
+
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      const text = typeof chunk.content === 'string' ? chunk.content : '';
+      if (text) {
+        onChunk(text);
+        fullResponse += text;
+      }
+    }
+
+    await addTextExchangeToMemory(sessionId, question, fullResponse);
+    console.log(`[LangChain Follow-Up] Stream complete (${fullResponse.length} chars)`);
+
+    return { success: true, response: fullResponse };
+  } catch (error) {
+    console.error('[LangChain Follow-Up] Stream error:', error);
+    return { success: false, error: mapFollowUpError(error) };
+  }
+}
+
 export async function handleFollowUpQuestion(
   sessionId: string,
   question: string,
@@ -134,6 +199,8 @@ export async function handleFollowUpQuestion(
     
     console.log(`[LangChain Follow-Up] Got response (${responseText.length} chars)`);
     
+    await addTextExchangeToMemory(sessionId, question, responseText);
+
     return {
       success: true,
       response: responseText
