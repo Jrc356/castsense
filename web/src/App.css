@@ -396,6 +396,8 @@ button:disabled {
 
 .zone-pill {
   white-space: nowrap;
+  min-height: 44px;
+  padding: 0 1rem;
   background: rgb(233 244 246 / 95%);
   color: #19475a;
   border: 1px solid var(--line-strong);
@@ -419,10 +421,17 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
+.tactics-facts > div {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: rgb(255 255 255 / 55%);
+}
+
 .tactics-facts dt {
-  margin: 0 0 0.2rem;
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #576f7c;
 }
@@ -431,11 +440,87 @@ button:disabled {
   margin: 0;
   color: #143647;
   font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .panel ul {
   margin: 0.35rem 0 0;
   padding-left: 1.2rem;
+}
+
+/* Follow-up chat */
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+.chat-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+
+.chat-bubble--user {
+  align-self: flex-end;
+  background: linear-gradient(140deg, #0f5f75 0%, #0a435d 100%);
+  color: #f4fbff;
+}
+
+.chat-bubble--assistant {
+  align-self: flex-start;
+  background: rgb(233 244 246 / 95%);
+  color: #143647;
+}
+
+.chat-bubble--streaming {
+  align-self: flex-start;
+  background: rgb(233 244 246 / 95%);
+  color: #143647;
+}
+
+.chat-bubble--thinking {
+  align-self: flex-start;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: rgb(233 244 246 / 95%);
+  color: #576f7c;
+  font-size: 0.9rem;
+}
+
+.followup-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.followup-input-row textarea {
+  flex: 1;
+  resize: vertical;
+}
+
+.followup-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.error-message {
+  font-size: 0.88rem;
+  color: #842f1e;
+  margin-bottom: 0.5rem;
 }
 
 @keyframes rise-in {
@@ -486,6 +571,29 @@ button:disabled {
 
   .action-row button {
     flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .media-frame {
+    max-height: 55vh;
+  }
+
+  .tactics-facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .chat-log {
+    max-height: 220px;
+  }
+
+  .followup-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .followup-input-row button {
+    width: 100%;
   }
 }
 

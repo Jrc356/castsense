@@ -178,44 +178,35 @@ export function ResultsScreen(): React.JSX.Element {
         <h3>Ask a Follow-Up</h3>
 
         {chatMessages.length > 0 || streamingContent ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '320px', overflowY: 'auto', marginBottom: '0.75rem', padding: '0.25rem 0' }}>
+          <div className="chat-log">
             {chatMessages.map((msg, i) => (
               <div
                 key={i}
-                style={{
-                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '12px',
-                  background: msg.role === 'user' ? '#1a73e8' : '#e8eaed',
-                  color: msg.role === 'user' ? '#fff' : '#202124',
-                  lineHeight: 1.5,
-                }}
+                className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble--user' : 'chat-bubble--assistant'}`}
               >
-                <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{msg.content}</p>
+                <p>{msg.content}</p>
               </div>
             ))}
             {streamingContent ? (
-              <div style={{ alignSelf: 'flex-start', maxWidth: '85%', padding: '0.5rem 0.75rem', borderRadius: '12px', background: '#e8eaed', color: '#202124', lineHeight: 1.5 }}>
-                <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+              <div className="chat-bubble chat-bubble--streaming">
+                <p>
                   {streamingContent}
-                  <span style={{ display: 'inline-block', width: '0.5em', height: '1em', background: 'currentColor', marginLeft: '1px', verticalAlign: 'text-bottom', animation: 'none', opacity: 0.7 }}>▋</span>
+                  <span style={{ display: 'inline-block', width: '0.5em', height: '1em', background: 'currentColor', marginLeft: '1px', verticalAlign: 'text-bottom', opacity: 0.7 }}>▋</span>
                 </p>
               </div>
             ) : followUpBusy ? (
-              <div style={{ alignSelf: 'flex-start', padding: '0.5rem 0.75rem', borderRadius: '12px', background: '#e8eaed', color: '#888', fontSize: '0.9rem' }}>…</div>
+              <div className="chat-bubble--thinking">…</div>
             ) : null}
             <div ref={chatEndRef} />
           </div>
         ) : null}
 
-        {followUpError && <p className="error-message" role="alert" style={{ marginBottom: '0.5rem' }}>{followUpError}</p>}
+        {followUpError && <p className="error-message" role="alert">{followUpError}</p>}
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+        <div className="followup-input-row">
           <textarea
             rows={2}
-            style={{ flex: 1, resize: 'vertical' }}
-            placeholder="Ask about zones, lures, timing… (Enter to send)"
+            placeholder="Ask about zones, lures, timing…"
             value={followUpInput}
             disabled={followUpBusy}
             onChange={(e) => setFollowUpInput(e.target.value)}
@@ -236,7 +227,7 @@ export function ResultsScreen(): React.JSX.Element {
         </div>
 
         {chatMessages.length === 0 && !followUpBusy && (
-          <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', opacity: 0.6 }}>Shift+Enter for a new line.</p>
+          <p className="followup-hint">Shift+Enter for a new line.</p>
         )}
       </section>
 
