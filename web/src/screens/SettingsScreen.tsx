@@ -50,7 +50,7 @@ export function SettingsScreen(): React.JSX.Element {
     <main className="screen">
       <section className="panel hero-panel">
         <h2>API Key Settings</h2>
-        <p>CastSense uses your own OpenAI API key in parity mode during migration.</p>
+        <p>CastSense uses your own OpenAI API key.</p>
       </section>
 
       <section className="panel">
