@@ -1,8 +1,6 @@
-import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state/AppContext'
 
 export function ErrorScreen(): React.JSX.Element {
-  const navigate = useNavigate()
   const { state, retry, reset } = useApp()
   const error = state.error
 
@@ -11,7 +9,7 @@ export function ErrorScreen(): React.JSX.Element {
       <main className="screen">
         <section className="panel">
           <h2>No error context available.</h2>
-          <button type="button" onClick={() => navigate('/')}>Back Home</button>
+          <button type="button" onClick={reset}>Back Home</button>
         </section>
       </main>
     )
@@ -33,22 +31,11 @@ export function ErrorScreen(): React.JSX.Element {
         <button
           className="secondary"
           type="button"
-          onClick={() => {
-            if (error.retryable) {
-              retry()
-            }
-            navigate('/')
-          }}
+          onClick={() => { if (error.retryable) { retry() } else { reset() } }}
         >
           Retry
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            reset()
-            navigate('/')
-          }}
-        >
+        <button type="button" onClick={reset}>
           Start Over
         </button>
       </section>

@@ -1,15 +1,8 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { pickMediaFromLibrary } from '../services/camera'
 import { useApp } from '../state/AppContext'
 
 export function CaptureScreen(): React.JSX.Element {
-  const navigate = useNavigate()
-  const { state, startCapture, completeCapture } = useApp()
-
-  useEffect(() => {
-    startCapture()
-  }, [startCapture])
+  const { state, reset, completeCapture } = useApp()
 
   async function pickFromLibrary() {
     const media = await pickMediaFromLibrary()
@@ -22,8 +15,6 @@ export function CaptureScreen(): React.JSX.Element {
       mimeType: media.mimeType,
       sizeBytes: media.sizeBytes,
     })
-
-    navigate('/')
   }
 
   return (
@@ -34,7 +25,7 @@ export function CaptureScreen(): React.JSX.Element {
       </section>
 
       <section className="action-row">
-        <button className="ghost" type="button" onClick={() => navigate('/')}>
+        <button className="ghost" type="button" onClick={reset}>
           Back
         </button>
         <button type="button" onClick={() => void pickFromLibrary()}>

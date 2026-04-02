@@ -8,7 +8,11 @@ import {
   storeApiKey,
 } from '../services/api-key-storage'
 
-export function SettingsScreen(): React.JSX.Element {
+interface SettingsScreenProps {
+  onBack: () => void
+}
+
+export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Element {
   const [apiKey, setApiKey] = useState('')
   const [configured, setConfigured] = useState(false)
   const [masked, setMasked] = useState('')
@@ -71,6 +75,9 @@ export function SettingsScreen(): React.JSX.Element {
       </section>
 
       <section className="action-row">
+        <button className="ghost" type="button" onClick={onBack}>
+          Back
+        </button>
         <button className="secondary" type="button" onClick={clear}>
           Clear Key
         </button>

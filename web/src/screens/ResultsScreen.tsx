@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { OverlayCanvas } from '../components/overlays'
 import { TacticsPanel, TextOnlyResults } from '../components'
 import type { CastSenseAnalysisResult, Tactic, Zone } from '../types/contracts'
@@ -29,7 +28,6 @@ function useDisplaySize(ref: React.RefObject<HTMLElement | null>): Size {
 }
 
 export function ResultsScreen(): React.JSX.Element {
-  const navigate = useNavigate()
   const { state, reset, retry } = useApp()
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -55,7 +53,7 @@ export function ResultsScreen(): React.JSX.Element {
       <main className="screen">
         <section className="panel">
           <h2>No analysis results available.</h2>
-          <button type="button" onClick={() => navigate('/')}>Back Home</button>
+          <button type="button" onClick={reset}>Back Home</button>
         </section>
       </main>
     )
@@ -124,16 +122,10 @@ export function ResultsScreen(): React.JSX.Element {
       </section>
 
       <section className="action-row">
-        <button className="ghost" type="button" onClick={() => { retry(); navigate('/') }}>
+        <button className="ghost" type="button" onClick={retry}>
           Retry Analysis
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            reset()
-            navigate('/')
-          }}
-        >
+        <button type="button" onClick={reset}>
           New Analysis
         </button>
       </section>

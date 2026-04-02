@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { runAnalysis } from '../services/analysis-orchestrator'
 import { getApiKey } from '../services/api-key-storage'
 import { fetchAvailableModels } from '../services/model-discovery'
@@ -7,8 +6,11 @@ import { getCurrentLocation } from '../services/metadata'
 import { createSessionId } from '../services/langchain-memory'
 import { useApp } from '../state/AppContext'
 
-export function HomeScreen(): React.JSX.Element {
-  const navigate = useNavigate()
+interface HomeScreenProps {
+  onOpenSettings: () => void
+}
+
+export function HomeScreen({ onOpenSettings }: HomeScreenProps): React.JSX.Element {
   const {
     state,
     canStartAnalysis,
@@ -18,6 +20,7 @@ export function HomeScreen(): React.JSX.Element {
     setUserConstraints,
     setAvailableModels,
     selectModel,
+    startCapture,
     startAnalysis,
     startProcessing,
     startEnrichment,
@@ -71,7 +74,7 @@ export function HomeScreen(): React.JSX.Element {
     setPlatformContext(platform || null)
     setGearType(gear)
     setUserConstraints({ notes: notes.trim() || undefined })
-    navigate('/capture')
+    startCapture()
   }
 
   async function analyzeNow() {
@@ -82,7 +85,7 @@ export function HomeScreen(): React.JSX.Element {
 
     const apiKey = await getApiKey()
     if (!apiKey) {
-      navigate('/settings')
+      onOpenSettings()
       return
     }
 
@@ -103,7 +106,6 @@ export function HomeScreen(): React.JSX.Element {
           message: 'Location is unavailable. Enable location permission and retry.',
           retryable: true,
         })
-        navigate('/error')
         return
       }
     }
@@ -146,19 +148,16 @@ export function HomeScreen(): React.JSX.Element {
             retryable: true,
           },
         )
-        navigate('/error')
         return
       }
 
       receiveResults(result.data, createSessionId())
-      navigate('/results')
     } catch (error) {
       handleError({
         code: 'UNKNOWN',
         message: error instanceof Error ? error.message : 'Analysis failed',
         retryable: true,
       })
-      navigate('/error')
     } finally {
       setBusy(false)
     }
@@ -292,7 +291,7 @@ export function HomeScreen(): React.JSX.Element {
       </section>
 
       <section className="action-row">
-        <button className="ghost" type="button" onClick={() => navigate('/settings')}>
+        <button className="ghost" type="button" onClick={onOpenSettings}>
           API Key Settings
         </button>
         <button className="secondary" type="button" onClick={openCapture}>
