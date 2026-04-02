@@ -2,6 +2,8 @@
 
 A responsive web AI fishing assistant. Point your camera at a fishing scene and CastSense returns cast recommendations, zone overlays, and rig tactics — powered by your own OpenAI API key.
 
+**Live demo:** [https://jrc356.github.io/castsense/](https://jrc356.github.io/castsense/)
+
 ## Project structure
 
 | Folder | Purpose |
