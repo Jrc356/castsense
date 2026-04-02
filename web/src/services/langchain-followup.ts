@@ -88,7 +88,7 @@ export async function handleFollowUpQuestion(
   sessionId: string,
   question: string,
   apiKey: string,
-  modelName: string = 'gpt-4o'
+  modelName: string = 'gpt-5.4'
 ): Promise<FollowUpResult> {
   console.log(`[LangChain Follow-Up] Handling question for session: ${sessionId}`);
   console.log(`[LangChain Follow-Up] Question: ${question}`);

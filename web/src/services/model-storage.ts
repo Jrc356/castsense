@@ -1,5 +1,5 @@
 const MODEL_KEY = 'castsense.selectedModel'
-const DEFAULT_MODEL = 'gpt-4o'
+const DEFAULT_MODEL = 'gpt-5.4'
 
 export async function saveSelectedModel(model: string): Promise<void> {
   localStorage.setItem(MODEL_KEY, model)
